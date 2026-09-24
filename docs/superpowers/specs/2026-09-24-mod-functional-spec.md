@@ -41,7 +41,7 @@ import them.
 | `pendingDecisions()` | fn | Returns `{ put(d: Decision \| null): void; take(): Decision \| null }` (rules below) |
 | `describeSetup(provider, url, switches, builtinByChoice?)` | fn | `switches` is `{ subagentModel; mainEffort; mainModel }` booleans; returns one line |
 | `describeDecision(decision, ms)` | fn | `ms` may be null; returns one line |
-| `describeStatus(decision, change)` | fn | `change` is `{ model?: string; effort?: Effort } \| null`; returns a short line |
+| `describeStatus(decision, change)` | fn | `change` is `{ model?: string; effort?: Effort }`; returns a short line |
 
 `hooks/model-router.ts` must export `register` (type `Register` from
 `'claude-code'`).
@@ -130,9 +130,9 @@ marked as unknown rather than omitted.
 - `describeDecision`: what the classifier said (tier, effort, risk and their
   confidences, the classifier's name, whether the decision is up-only) and how
   long it took, or that nothing came back.
-- `describeStatus`: the short status-bar form: the tier and confidence, and
-  either the change made (a removed effort shown as such) or that the request
-  was sent as is.
+- `describeStatus`: the short status-bar form for a changed request: the tier
+  and confidence when there is a verdict, and the change made (a removed effort
+  shown as such). A request sent as is clears the status line.
 
 ## Hook behaviour (`register`)
 

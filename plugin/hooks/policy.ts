@@ -246,15 +246,13 @@ export function describeDecision(decision: Decision | null, ms: number | null): 
   return trailer.length === 0 ? line : `${line} (${trailer.join(', ')})`
 }
 
-/** The status-bar text after a main-loop turn is routed. */
-export function describeStatus(decision: Decision | null, change: { model?: string; effort?: Effort } | null): string {
-  if (!decision) return 'router: nothing to go on'
-  const verdict = `router ${decision.tier}@${num(decision.confidence)}`
-  if (!change) return `${verdict}, as sent`
-  const hasModel = 'model' in change && change.model !== undefined
-  const hasEffort = 'effort' in change
-  if (!hasModel && !hasEffort) return `${verdict}, as sent`
-  const model = hasModel ? ` ${change.model}` : ''
-  const effort = hasEffort ? ` ${change.effort ?? 'no effort'}` : ''
+/**
+ * The status-bar text for a main-loop turn the router changed. A change can
+ * come with no verdict: an effort is dropped when the model takes none.
+ */
+export function describeStatus(decision: Decision | null, change: { model?: string; effort?: Effort }): string {
+  const verdict = decision ? `router ${decision.tier}@${num(decision.confidence)}` : 'router'
+  const model = change.model !== undefined ? ` ${change.model}` : ''
+  const effort = 'effort' in change ? ` ${change.effort ?? 'no effort'}` : ''
   return `${verdict} ⇒${model}${effort}`
 }

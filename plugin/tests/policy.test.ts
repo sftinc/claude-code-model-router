@@ -372,11 +372,9 @@ describe('log and status text', () => {
     expect(describeDecision(decide({ classifier: null, confidence: null }), null)).toBe('balanced@?')
   })
 
-  test('the status line covers no verdict, nothing changed, and a change', () => {
+  test('the status line names the change, with the verdict when there is one', () => {
     const d = decide({ tier: 'deep', confidence: 0.9 })
-    expect(describeStatus(null, null)).toBe('router: nothing to go on')
-    expect(describeStatus(d, null)).toBe('router deep@0.90, as sent')
-    expect(describeStatus(d, {})).toBe('router deep@0.90, as sent')
+    expect(describeStatus(null, { effort: undefined })).toBe('router ⇒ no effort')
     expect(describeStatus(d, { model: OPUS, effort: 'high' })).toBe(`router deep@0.90 ⇒ ${OPUS} high`)
     expect(describeStatus(d, { effort: 'xhigh' })).toBe('router deep@0.90 ⇒ xhigh')
   })

@@ -325,7 +325,10 @@ async function routeTurn($: Engine, rt: Runtime, e: StepEvent): Promise<Change |
         : ''
     note($, rt, `main loop as sent${unapplied} — ${routing.reason}`)
   }
-  if (rt.opts.logDecisions && rt.mainCanChange) $.ui.status(describeStatus(decision, shaped.change))
+  // Shown only while the current turn is changed, so a turn sent as is clears it.
+  if (rt.opts.logDecisions && rt.mainCanChange) {
+    $.ui.status(shaped.change ? describeStatus(decision, shaped.change) : undefined)
+  }
   return shaped.change
 }
 

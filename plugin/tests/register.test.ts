@@ -30,6 +30,7 @@ function makeDollar(
   } = {},
 ) {
   const logs: string[] = []
+  const statuses: (string | undefined)[] = []
   let clock = 0
   const calls: { url?: string; init?: { headers?: Record<string, string>; body?: string }; fetches: number } = {
     fetches: 0,
@@ -64,10 +65,12 @@ function makeDollar(
       log: (text: string) => {
         logs.push(text)
       },
-      status: () => undefined,
+      status: (text: string | undefined) => {
+        statuses.push(text)
+      },
     },
   }
-  return { $: $ as unknown as Parameters<Parameters<typeof register>[0]>[0], logs, calls }
+  return { $: $ as unknown as Parameters<Parameters<typeof register>[0]>[0], logs, statuses, calls }
 }
 
 const promptOf = (text: string) => ({ text, wait: false, origin: { kind: 'composer' } })
@@ -177,6 +180,23 @@ describe('register', () => {
     expect(received.model).toBe('claude-haiku-4-5-20251001')
     expect('effort' in received).toBe(true)
     expect(received.effort).toBeUndefined()
+  })
+
+  test('the status line shows a change and is cleared by a turn sent as is', async () => {
+    const { on, handlers } = recordHandlers()
+    register(on, OPTIONS)
+    let ok = true
+    const { $, statuses } = makeDollar({
+      fetch: async () => ({ ok, status: ok ? 200 : 401, headers: {}, text: ok ? verdict() : '' }),
+    })
+
+    await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('first'), promptNext)
+    await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'low'))
+    ok = false
+    await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('second'), promptNext)
+    await stepThrough(handlers, $, stepOf('t2', 0, 'claude-sonnet-5', 'low'))
+
+    expect(statuses).toEqual(['router balanced@0.90 ⇒ xhigh', undefined])
   })
 
   test('unreadable history yields a raise-only verdict line and logs the history failure once across two prompts', async () => {
