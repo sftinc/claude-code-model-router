@@ -163,7 +163,7 @@ describe('register', () => {
     await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('rename getUser'), promptNext)
     const received = await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'medium'))
 
-    expect(logs).toContain('[model-router] main loop: model (sonnet), effort (medium), no reply from the api within 2000ms')
+    expect(logs).toContain('main loop · model (sonnet), effort (medium), no reply from the api within 2000ms')
     expect(received.model).toBe('claude-sonnet-5')
     expect(received.effort).toBe('medium')
   })
@@ -220,12 +220,12 @@ describe('register', () => {
     await stepThrough(handlers, $, stepOf('t2', 0, 'claude-sonnet-5', 'low'))
 
     expect(transcript).toEqual([
-      '[model-router] main loop: model (sonnet), effort (low → xhigh @ 90%)',
-      '[model-router] main loop: model (sonnet), effort (low), api returned HTTP 401',
+      'main loop · model (sonnet), effort (low → xhigh @ 90%)',
+      'main loop · model (sonnet), effort (low), api returned HTTP 401',
     ])
-    expect(logs).toContain(`[model-router] api reply for main loop: HTTP 200 ${verdict()}`)
-    expect(logs).toContain('[model-router] api reply for main loop: HTTP 401 bad secret')
-    expect(logs.some((line) => line.startsWith('[model-router] verdict via api for main loop:'))).toBe(true)
+    expect(logs).toContain(`main loop · api reply: HTTP 200 ${verdict()}`)
+    expect(logs).toContain('main loop · api reply: HTTP 401 bad secret')
+    expect(logs.some((line) => line.startsWith('main loop · verdict via api:'))).toBe(true)
   })
 
   test('a model change and a dropped effort show as aliases', async () => {
@@ -243,7 +243,7 @@ describe('register', () => {
     await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('rename getUser'), promptNext)
     await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'high'))
 
-    expect(transcript).toEqual(['[model-router] main loop: model (sonnet → haiku @ 90%), effort (dropped)'])
+    expect(transcript).toEqual(['main loop · model (sonnet → haiku @ 90%), effort (dropped)'])
   })
 
   test('a subagent line shows the change, or the model it started on when left alone', async () => {
@@ -265,8 +265,8 @@ describe('register', () => {
     await spawn(spawnEvent)
 
     expect(transcript).toEqual([
-      '[model-router] subagent Explore: model (sonnet → haiku @ 85%)',
-      '[model-router] subagent Explore: model (haiku)',
+      'subagent Explore · model (sonnet → haiku @ 85%)',
+      'subagent Explore · model (haiku)',
     ])
   })
 
@@ -278,7 +278,7 @@ describe('register', () => {
     await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('first'), promptNext)
     await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'low'))
 
-    expect(logs).toEqual(['[model-router] main loop: model (sonnet), effort (low), api returned HTTP 500'])
+    expect(logs).toEqual(['main loop · model (sonnet), effort (low), api returned HTTP 500'])
   })
 
   test('with logDecisions off a change writes nothing', async () => {
@@ -307,7 +307,7 @@ describe('register', () => {
     await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('second'), promptNext)
 
     expect(logs.filter((line) => line.includes('session history unavailable'))).toHaveLength(1)
-    expect(logs.filter((line) => line.startsWith('[model-router] verdict via') && line.includes('raise-only'))).toHaveLength(2)
+    expect(logs.filter((line) => line.startsWith('main loop · verdict via') && line.includes('raise-only'))).toHaveLength(2)
   })
 
   test('the POST goes to the classify endpoint with the bearer secret and a main-source body', async () => {
@@ -364,7 +364,7 @@ describe('register', () => {
       await start(handlers, $, true)
       await settled()
       expect(transcript).toHaveLength(1)
-      expect(transcript[0]).toContain('classifier warmed up in')
+      expect(transcript[0]).toContain('warm-up · done in')
     })
 
     test('a failed warm-up is reported in the transcript', async () => {
@@ -374,7 +374,7 @@ describe('register', () => {
 
       await start(handlers, $, true)
       await settled()
-      expect(logs).toEqual(['[model-router] warm-up failed (offline)'])
+      expect(logs).toEqual(['warm-up · failed (offline)'])
       expect(transcript).toEqual(logs)
     })
   })

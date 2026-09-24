@@ -66,7 +66,7 @@ Options live under `pluginConfigs` in `~/.claude/settings.json`. The key is `mod
 | `routeMainModel` | false | Switching models invalidates the prompt cache |
 | `timeoutMs` | 2000 | Wait budget for the classifier |
 | `warmUp` | true | Sends one throwaway classification when an interactive session starts, so the first prompt doesn't hit a cold classifier |
-| `logDecisions` | true | Shows one short line per routed turn or subagent in the transcript, such as `main loop: model (sonnet), effort (low → xhigh @ 90%)`, plus the warm-up; the details, including whole api replies, go to the debug log (`claude --debug`). A line reporting a failure always shows |
+| `logDecisions` | true | Shows one short line per routed turn or subagent in the transcript, such as `main loop · model (sonnet), effort (low → xhigh @ 90%)`, plus the warm-up; the details, including whole api replies, go to the debug log (`claude --debug`). A line reporting a failure always shows |
 
 A request routed to a model without effort support (Haiku) never carries an effort, whatever the switches say.
 

@@ -155,7 +155,9 @@ null (built-in). With the api, the URL is `endpoint(apiUrl)`.
 and the api is configured (the built-in classifier yields no effort). The setup
 line reports main effort as on only in that second case.
 
-**Log prefix.** Every log line starts `[model-router] `.
+**Log prefix.** Every log line starts with what it is about and a dot:
+`main loop · `, `subagent <type> · `, `warm-up · ` or `setup · `. The engine
+already labels each line with the plugin's name, so the plugin adds none.
 
 **Where lines go.** The transcript gets one short line per routed main-loop
 turn or subagent, and the warm-up's result. Models show as their alias
@@ -164,18 +166,18 @@ whole api replies, thrown errors with their stack, verdicts, routing reasons)
 go to the debug log alone. `logDecisions` gates all of these, except that a
 line carrying a failure, and the one-time warnings, are always written.
 
-- Main loop: `main loop: model (sonnet), effort (high)`. A part that changes
+- Main loop: `main loop · model (sonnet), effort (high)`. A part that changes
   gets an arrow and its basis: `model (sonnet → opus @ 88%)`,
   `effort (medium → high @ risk 82%)`. An effort removed because the model
   takes none is `effort (dropped)`; a request with no effort has no effort
   part. When classification failed, its short reason ends the line:
   `…, api returned HTTP 401`.
-- Subagent: `subagent Explore: model (sonnet → haiku @ 85%)` when routed, the
+- Subagent: `subagent Explore · model (sonnet → haiku @ 85%)` when routed, the
   "from" model being `e.model ?? e.parentModel`. Left alone, it shows the model
   the engine resolved (from `next`), since an agent's definition may name one
-  the router can't see: `subagent Explore: model (haiku)`. A failure ends the
+  the router can't see: `subagent Explore · model (haiku)`. A failure ends the
   line as for the main loop.
-- Warm-up: `classifier warmed up in 412ms`, or `warm-up failed (…)`.
+- Warm-up: `warm-up · done in 412ms`, or `warm-up · failed (…)`.
 
 **One-time lines.**
 - The setup line, at the first `prompt.submit` or `agent.spawn`, before any
