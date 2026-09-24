@@ -31,12 +31,15 @@ function makeDollar(
 ) {
   const logs: string[] = []
   let clock = 0
-  const calls: { url?: string; init?: { headers?: Record<string, string>; body?: string } } = {}
+  const calls: { url?: string; init?: { headers?: Record<string, string>; body?: string }; fetches: number } = {
+    fetches: 0,
+  }
   const $ = {
     http: {
       fetch: async (url: string, init: { headers?: Record<string, string>; body?: string }) => {
         calls.url = url
         calls.init = init
+        calls.fetches += 1
         return parts.fetch ? parts.fetch() : { ok: true, status: 200, headers: {}, text: '' }
       },
     },
@@ -45,6 +48,11 @@ function makeDollar(
       // Never resolves unless a test overrides it: a fetch that does resolve
       // must always win the race, whatever the two mocks' microtask timing.
       sleep: (ms: number) => (parts.sleep ? parts.sleep(ms) : new Promise<void>(() => undefined)),
+      // Runs the timer's function at once; the warm-up is the only caller.
+      after: (_ms: number, fn: () => void) => {
+        fn()
+        return { cancel: () => undefined }
+      },
     },
     session: {
       messages: async () => (parts.messages ? parts.messages() : []),
@@ -144,7 +152,7 @@ describe('register', () => {
     })
 
     await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('rename getUser'), promptNext)
-    expect(logs.some((line) => line.includes('within 800ms'))).toBe(true)
+    expect(logs.some((line) => line.includes('within 1500ms'))).toBe(true)
 
     const received = await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'medium'))
     expect(received.model).toBe('claude-sonnet-5')
@@ -200,5 +208,47 @@ describe('register', () => {
     const body = JSON.parse(calls.init?.body ?? '{}')
     expect(body.source).toBe('main')
     expect(body.prompt).toBe('rename getUser to fetchUser')
+  })
+
+  describe('warm-up', () => {
+    const startOf = (isInteractive: boolean) => ({ cwd: '/tmp', surface: null, isInteractive })
+    const startNext = async (e: { cwd: string }) => ({ cwd: e.cwd })
+    const start = (handlers: Record<string, (...a: unknown[]) => unknown>, $: unknown, isInteractive: boolean) =>
+      (handlers['session.start'] as (...a: unknown[]) => Promise<unknown>)($, startOf(isInteractive), startNext)
+
+    test('an interactive session start sends one throwaway classification to the api', async () => {
+      const { on, handlers } = recordHandlers()
+      register(on, OPTIONS)
+      const { $, calls } = makeDollar()
+
+      await start(handlers, $, true)
+      expect(calls.fetches).toBe(1)
+      expect(calls.url).toBe('https://router.test/v1/classify')
+      expect(calls.init?.headers?.authorization).toBe('Bearer s')
+      expect(JSON.parse(calls.init?.body ?? '{}')).toEqual({ source: 'main', prompt: 'warm-up' })
+    })
+
+    test('a -p run, warmUp off, or no api configured sends nothing', async () => {
+      for (const [options, isInteractive] of [
+        [OPTIONS, false],
+        [{ ...OPTIONS, warmUp: false }, true],
+        [{ provider: 'builtin' }, true],
+      ] as const) {
+        const { on, handlers } = recordHandlers()
+        register(on, options)
+        const { $, calls } = makeDollar()
+        await start(handlers, $, isInteractive)
+        expect(calls.fetches).toBe(0)
+      }
+    })
+
+    test('a failed warm-up is swallowed', async () => {
+      const { on, handlers } = recordHandlers()
+      register(on, OPTIONS)
+      const { $, logs } = makeDollar({ fetch: async () => Promise.reject(new Error('offline')) })
+
+      await start(handlers, $, true)
+      expect(logs).toEqual([])
+    })
   })
 })

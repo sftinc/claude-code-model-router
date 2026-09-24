@@ -55,7 +55,8 @@ Options live under `pluginConfigs` in `~/.claude/settings.json`. The key is `mod
 | `respectAgentModels` | true | Keeps a model the Agent tool named. A model set in an agent's definition isn't visible to the router and isn't protected |
 | `routeMainEffort` | true | |
 | `routeMainModel` | false | Switching models invalidates the prompt cache |
-| `timeoutMs` | 800 | Wait budget for the classifier |
+| `timeoutMs` | 1500 | Wait budget for the classifier |
+| `warmUp` | true | Sends one throwaway classification when an interactive session starts, so the first prompt doesn't hit a cold classifier |
 | `logDecisions` | true | |
 
 A request routed to a model without effort support (Haiku) never carries an effort, whatever the switches say.

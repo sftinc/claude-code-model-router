@@ -140,7 +140,7 @@ Keys and defaults: `provider` `auto`, `apiUrl` ``, `apiSecret` ``,
 `minUpgradeConfidence` 0.3, `minDowngradeConfidence` 0.6, `riskyThreshold` 0.7,
 `contextMessages` 6, `contextChars` 6000, `routeSubagentModel` true,
 `respectAgentModels` true, `routeMainEffort` true, `routeMainModel` false,
-`timeoutMs` 800, `logDecisions` true.
+`timeoutMs` 1500, `warmUp` true, `logDecisions` true.
 
 **Backend.** `selectProvider(provider, apiUrl, apiSecret)` gives `'api'` or
 null (built-in). With the api, the URL is `endpoint(apiUrl)`.
@@ -170,6 +170,13 @@ off, only warnings and failures are logged.
   timeout; `builtinDecision(label)`, with the up-only flag applied.
 - any thrown error: one log line, no decision.
 - A late answer must never be used.
+
+**`session.start`.** After the engine's own start, when the session is
+interactive, the api is configured and `warmUp` is on, send one throwaway
+classification (`source: 'main'`, prompt `warm-up`) in the background, detached
+from the dispatch through `$.clock.after`. Its answer and any failure are
+ignored, and it logs nothing. A `-p` run skips it: its first prompt arrives at
+once, so a warm-up would only race it.
 
 **`prompt.submit`.**
 1. One-time setup line.

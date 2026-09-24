@@ -116,7 +116,13 @@
       "type": "number",
       "title": "Classifier timeout (ms)",
       "description": "Budget in milliseconds for each classification; a slower answer is ignored and routing is skipped for that request",
-      "default": 800
+      "default": 1500
+    },
+    "warmUp": {
+      "type": "boolean",
+      "title": "Warm up the classifier",
+      "description": "When an interactive session starts, send one throwaway classification in the background so the first prompt doesn't wait on a cold classifier. Costs one classifier call per session",
+      "default": true
     },
     "logDecisions": {
       "type": "boolean",

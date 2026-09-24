@@ -54,6 +54,7 @@ type Options = {
   routeMainEffort: boolean
   routeMainModel: boolean
   timeoutMs: number
+  warmUp: boolean
   logDecisions: boolean
 }
 
@@ -73,7 +74,8 @@ const OPTION_DEFAULTS: Readonly<Options> = {
   respectAgentModels: true,
   routeMainEffort: true,
   routeMainModel: false,
-  timeoutMs: 800,
+  timeoutMs: 1500,
+  warmUp: true,
   logDecisions: true,
 }
 
@@ -209,6 +211,23 @@ async function classify($: Engine, rt: Runtime, situation: Situation, upOnly: bo
   }
 }
 
+/** The throwaway situation a warm-up sends. */
+const WARM_UP: Situation = { source: 'main', prompt: 'warm-up' }
+
+/**
+ * Sends one throwaway classification in the background, so a classifier that
+ * has gone cold is warm again by the first prompt. The timer detaches it from
+ * the session.start dispatch; its answer, or failure, is ignored.
+ */
+function warmUp($: Engine, rt: Runtime): void {
+  const { apiSecret } = rt.opts
+  $.clock.after(0, () => {
+    $.http
+      .fetch(rt.url, { method: 'POST', headers: requestHeaders(apiSecret), body: JSON.stringify(WARM_UP) })
+      .catch(() => undefined)
+  })
+}
+
 /** Classifies, writes the verdict line, and returns the decision. */
 async function classifyAndReport(
   $: Engine,
@@ -330,6 +349,14 @@ async function onSpawn($: Engine, rt: Runtime, e: SpawnEvent): Promise<string | 
 
 export const register: Register = (on, options) => {
   const rt = createRuntime(readOptions((options ?? {}) as Record<string, unknown>))
+
+  on('session.start', async ($, e, next) => {
+    const started = await next(e)
+    // Only with a person at the prompt: a -p run's first prompt arrives at once,
+    // so a warm-up would only race it.
+    if (e.isInteractive && rt.backend === 'api' && rt.opts.warmUp) warmUp($, rt)
+    return started
+  })
 
   on('prompt.submit', async ($, e, next) => {
     await onPrompt($, rt, e)

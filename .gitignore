@@ -15,5 +15,6 @@ worker/worker-configuration.d.ts
 # Written by `/plugin-types plugin`; Anthropic's declarations, not ours to publish
 plugin/.claude/types/
 
-# Local agent workspaces
+# Local agent files
 .superpowers/
+/CLAUDE.md
