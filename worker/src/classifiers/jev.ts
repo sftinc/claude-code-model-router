@@ -70,10 +70,22 @@ const isProbabilities = (value: unknown): value is Record<string, number> =>
 
 const confidenceField = (value: unknown): number | null => (isUnit(value) ? value : null)
 
+/**
+ * The answer inside the binding's response. Through AI Gateway the binding
+ * returns `{ state: 'Completed', result: { model, answers, usage } }`; the bare
+ * inner shape is accepted too. Any other state is a failure.
+ */
+function unwrap(response: unknown): unknown {
+  if (!isRecord(response) || !('state' in response)) return response
+  if (response.state !== 'Completed') throw new Error(`jev: request not completed (state: ${String(response.state)})`)
+  return response.result
+}
+
 /** Jev's answer, checked field by field; throws on anything the adapter can't normalize. */
-export function parseAnswers(result: unknown): Parsed {
+export function parseAnswers(response: unknown): Parsed {
+  const result = unwrap(response)
   if (!isRecord(result) || typeof result.model !== 'string' || !isRecord(result.answers)) {
-    throw new Error('jev: unexpected response shape')
+    throw new Error(`jev: unexpected response shape: ${String(JSON.stringify(response)).slice(0, 400)}`)
   }
   const { tier, effort, risky } = result.answers
   if (!isRecord(tier) || !TIERS.includes(tier.choice as Tier) || !isProbabilities(tier.probabilities)) {

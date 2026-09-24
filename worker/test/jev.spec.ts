@@ -62,6 +62,16 @@ describe('jev adapter', () => {
 })
 
 describe('parseAnswers', () => {
+  test("reads the answer out of AI Gateway's completed envelope", () => {
+    const parsed = parseAnswers({ state: 'Completed', result: answer(), gatewayMetadata: { keySource: 'Unified' } })
+    expect(parsed.model).toBe('jev-1.13.0')
+    expect(parsed.tier.choice).toBe('balanced')
+  })
+
+  test('refuses an envelope whose state is not Completed', () => {
+    expect(() => parseAnswers({ state: 'Running', result: answer() })).toThrow('state: Running')
+  })
+
   test('refuses a wrapped or shapeless response', () => {
     expect(() => parseAnswers({ result: answer() })).toThrow()
     expect(() => parseAnswers(null)).toThrow()
