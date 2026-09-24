@@ -13,12 +13,21 @@ The idea comes from [jev-model-router](https://github.com/davila7/claude-code-te
 
 ## Install
 
-The plugin lives in `plugin/`, and the repo is also a marketplace:
+The plugin lives in `plugin/`, and the repo is also a marketplace. From a terminal:
+
+```bash
+claude plugin marketplace add sftinc/claude-code-model-router
+claude plugin install model-router@sftinc
+```
+
+Or inside Claude Code:
 
 ```
 /plugin marketplace add sftinc/claude-code-model-router
 /plugin install model-router@sftinc
 ```
+
+If the repo is private, adding the marketplace needs git access to it (an SSH key or `gh auth login`).
 
 Start Claude Code with `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`. To run it from a clone instead:
 
