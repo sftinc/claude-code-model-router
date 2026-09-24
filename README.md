@@ -66,7 +66,7 @@ Options live under `pluginConfigs` in `~/.claude/settings.json`. The key is `mod
 | `routeMainModel` | false | Switching models invalidates the prompt cache |
 | `timeoutMs` | 2000 | Wait budget for the classifier |
 | `warmUp` | true | Sends one throwaway classification when an interactive session starts, so the first prompt doesn't hit a cold classifier |
-| `logDecisions` | true | |
+| `logDecisions` | true | Shows each change the router applies, and the warm-up, in the transcript; everything else it decides goes to the debug log (`claude --debug`). Warnings always go to the debug log |
 
 A request routed to a model without effort support (Haiku) never carries an effort, whatever the switches say.
 

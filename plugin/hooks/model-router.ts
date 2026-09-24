@@ -125,15 +125,21 @@ function createRuntime(opts: Options): Runtime {
 }
 
 // ---------------------------------------------------------------------------
-// Logging. `note` is informational and obeys logDecisions; `warn` is for
-// warnings and failures and is always written.
+// Logging. Only a change the router applies, and the warm-up, reach the
+// transcript (`tell`); the rest goes to the debug log alone (`note`), so the
+// chat isn't cluttered with turns that were left as they were. logDecisions
+// gates both. Warnings and failures (`warn`) always reach the debug log.
 
-function note($: Engine, rt: Runtime, text: string): void {
+function tell($: Engine, rt: Runtime, text: string): void {
   if (rt.opts.logDecisions) $.ui.log(TAG + text)
 }
 
+function note($: Engine, rt: Runtime, text: string): void {
+  if (rt.opts.logDecisions) $.ui.log(TAG + text, { to: 'debug' })
+}
+
 function warn($: Engine, text: string): void {
-  $.ui.log(TAG + text)
+  $.ui.log(TAG + text, { to: 'debug' })
 }
 
 function setupOnce($: Engine, rt: Runtime): void {
@@ -218,14 +224,24 @@ const WARM_UP: Situation = { source: 'main', prompt: 'warm-up' }
 /**
  * Sends one throwaway classification in the background, so a classifier that
  * has gone cold is warm again by the first prompt. The timer detaches it from
- * the session.start dispatch; its answer, or failure, is ignored.
+ * the session.start dispatch; only how it went is reported.
  */
 function warmUp($: Engine, rt: Runtime): void {
   const { apiSecret } = rt.opts
-  $.clock.after(0, () => {
-    $.http
-      .fetch(rt.url, { method: 'POST', headers: requestHeaders(apiSecret), body: JSON.stringify(WARM_UP) })
-      .catch(() => undefined)
+  $.clock.after(0, async () => {
+    const started = await $.clock.now()
+    try {
+      const reply = await $.http.fetch(rt.url, {
+        method: 'POST',
+        headers: requestHeaders(apiSecret),
+        body: JSON.stringify(WARM_UP),
+      })
+      const elapsed = (await $.clock.now()) - started
+      if (reply.ok) tell($, rt, `classifier warmed up in ${elapsed}ms`)
+      else warn($, `warm-up got HTTP ${reply.status}`)
+    } catch (error) {
+      warn($, `warm-up failed (${error instanceof Error ? error.message : String(error)})`)
+    }
   })
 }
 
@@ -317,7 +333,7 @@ async function routeTurn($: Engine, rt: Runtime, e: StepEvent): Promise<Change |
   const shaped = shapeChange(routing, e, rt.opts)
 
   if (shaped.change !== null) {
-    note($, rt, explainChange(e, shaped, routing))
+    tell($, rt, explainChange(e, shaped, routing))
   } else if (rt.mainCanChange) {
     const unapplied =
       routing.model !== null && !rt.opts.routeMainModel
@@ -345,7 +361,7 @@ async function onSpawn($: Engine, rt: Runtime, e: SpawnEvent): Promise<string | 
   const pinned = rt.opts.respectAgentModels && e.model !== undefined
   const routing = route(decision, { model: e.model ?? e.parentModel, pinned }, rt.policy)
   if (routing.model === null) note($, rt, `spawn of ${kind} left alone (${routing.reason})`)
-  else note($, rt, `spawn of ${kind} goes to ${routing.model} (${routing.reason})`)
+  else tell($, rt, `spawn of ${kind} goes to ${routing.model} (${routing.reason})`)
   return routing.model
 }
 

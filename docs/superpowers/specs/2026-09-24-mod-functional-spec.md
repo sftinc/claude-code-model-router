@@ -55,7 +55,7 @@ import them.
   `$.noun.event(...)` directly at the call site (no aliasing `$` members, no
   passing them around). Any function that receives `$` must be a top-level
   function in a plugin file or imported from one.
-- The engine calls used: `$.ui.log(text)`, `$.ui.status(text)`,
+- The engine calls used: `$.ui.log(text, { to })`, `$.ui.status(text)`,
   `$.clock.now()`, `$.clock.sleep(ms)`, `$.http.fetch(url, init)` (resolves to
   `{ ok, status, text }`), `$.model.classify(text, labels)` (resolves to a
   label or undefined), `$.session.messages()`.
@@ -152,8 +152,14 @@ null (built-in). With the api, the URL is `endpoint(apiUrl)`.
 and the api is configured (the built-in classifier yields no effort). The setup
 line reports main effort as on only in that second case.
 
-**Log prefix.** Every log line starts `[model-router] `. With `logDecisions`
-off, only warnings and failures are logged.
+**Log prefix.** Every log line starts `[model-router] `.
+
+**Where lines go.** Only a change the router applies (a main-loop request
+changed, a subagent sent to another model) and the warm-up's result reach the
+transcript. Every other line (setup, verdicts, requests sent as is, subagents
+left alone) goes to the debug log alone. `logDecisions` gates all of these.
+Warnings and failures always go to the debug log alone, whatever
+`logDecisions` says.
 
 **One-time lines.**
 - The setup line, at the first `prompt.submit` or `agent.spawn`, before any
@@ -177,8 +183,8 @@ off, only warnings and failures are logged.
 **`session.start`.** After the engine's own start, when the session is
 interactive, the api is configured and `warmUp` is on, send one throwaway
 classification (`source: 'main'`, prompt `warm-up`) in the background, detached
-from the dispatch through `$.clock.after`. Its answer and any failure are
-ignored, and it logs nothing. A `-p` run skips it: its first prompt arrives at
+from the dispatch through `$.clock.after`. An ok answer writes one transcript
+line with the elapsed ms; a non-ok status or a failure is a warning. A `-p` run skips it: its first prompt arrives at
 once, so a warm-up would only race it.
 
 **`prompt.submit`.**
@@ -213,10 +219,10 @@ once, so a warm-up would only race it.
    hook must not skip turns when the main loop can't change.
 5. Remember the turn id and the change (null when empty).
 6. When logging and the main loop can change, set the status line. With no
-   change, log the routing reason, noting when a wanted model was dropped
-   because main-model routing is off. With a change (and logging on), log the
-   new model and/or effort (or that the effort was removed because the model
-   takes none) with the reason. Pass on the event with the change spread over
+   change, log the routing reason to the debug log, noting when a wanted model
+   was dropped because main-model routing is off. With a change, write the new
+   model and/or effort (or that the effort was removed because the model takes
+   none) with the reason to the transcript. Pass on the event with the change spread over
    it.
 
 **`agent.spawn`.**
@@ -228,8 +234,9 @@ once, so a warm-up would only race it.
    from `e.subagentType`. Classify with up-only off; log the decision line
    tagged with the subagent type.
 5. `pinned` is `respectAgentModels` and `e.model` defined. Route against
-   `{ model: e.model ?? e.parentModel, pinned }`. No model: log the reason and
-   pass on. Otherwise log the change and pass on with `model` set to the tier's
+   `{ model: e.model ?? e.parentModel, pinned }`. No model: log the reason to
+   the debug log and pass on. Otherwise write the change to the transcript and
+   pass on with `model` set to the tier's
    value as configured (an alias stays an alias here).
 
 ## Worker wording (`worker/src/classifiers/jev.ts`)

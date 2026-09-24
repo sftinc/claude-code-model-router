@@ -29,7 +29,10 @@ function makeDollar(
     messages?: () => unknown[]
   } = {},
 ) {
+  // Every line, as the debug log has them, and the ones also shown in the transcript.
   const logs: string[] = []
+  const transcript: string[] = []
+  const timers: unknown[] = []
   const statuses: (string | undefined)[] = []
   let clock = 0
   const calls: { url?: string; init?: { headers?: Record<string, string>; body?: string }; fetches: number } = {
@@ -49,9 +52,10 @@ function makeDollar(
       // Never resolves unless a test overrides it: a fetch that does resolve
       // must always win the race, whatever the two mocks' microtask timing.
       sleep: (ms: number) => (parts.sleep ? parts.sleep(ms) : new Promise<void>(() => undefined)),
-      // Runs the timer's function at once; the warm-up is the only caller.
-      after: (_ms: number, fn: () => void) => {
-        fn()
+      // Runs the timer's function at once and keeps what it returns, so a test
+      // can await the warm-up; the warm-up is the only caller.
+      after: (_ms: number, fn: () => unknown) => {
+        timers.push(fn())
         return { cancel: () => undefined }
       },
     },
@@ -62,15 +66,17 @@ function makeDollar(
       classify: async () => undefined,
     },
     ui: {
-      log: (text: string) => {
+      log: (text: string, options?: { to?: string }) => {
         logs.push(text)
+        if (options?.to !== 'debug') transcript.push(text)
       },
       status: (text: string | undefined) => {
         statuses.push(text)
       },
     },
   }
-  return { $: $ as unknown as Parameters<Parameters<typeof register>[0]>[0], logs, statuses, calls }
+  const settled = () => Promise.all(timers)
+  return { $: $ as unknown as Parameters<Parameters<typeof register>[0]>[0], logs, transcript, settled, statuses, calls }
 }
 
 const promptOf = (text: string) => ({ text, wait: false, origin: { kind: 'composer' } })
@@ -199,6 +205,38 @@ describe('register', () => {
     expect(statuses).toEqual(['router balanced@0.90 ⇒ xhigh', undefined])
   })
 
+  test('only a change reaches the transcript; verdicts, turns sent as is and warnings go to the debug log', async () => {
+    const { on, handlers } = recordHandlers()
+    register(on, OPTIONS)
+    let ok = true
+    const { $, logs, transcript } = makeDollar({
+      fetch: async () => ({ ok, status: ok ? 200 : 401, headers: {}, text: ok ? verdict() : '' }),
+    })
+
+    await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('first'), promptNext)
+    await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'low'))
+    ok = false
+    await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('second'), promptNext)
+    await stepThrough(handlers, $, stepOf('t2', 0, 'claude-sonnet-5', 'low'))
+
+    expect(transcript).toHaveLength(1)
+    expect(transcript[0]).toContain('effort low → xhigh')
+    expect(logs.some((line) => line.includes('HTTP 401'))).toBe(true)
+    expect(logs.some((line) => line.startsWith('[model-router] verdict via'))).toBe(true)
+  })
+
+  test('with logDecisions off a change writes nothing', async () => {
+    const { on, handlers } = recordHandlers()
+    register(on, { ...OPTIONS, logDecisions: false })
+    const { $, logs } = makeDollar({ fetch: async () => ({ ok: true, status: 200, headers: {}, text: verdict() }) })
+
+    await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('first'), promptNext)
+    const received = await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'low'))
+
+    expect(received.effort).toBe('xhigh')
+    expect(logs).toEqual([])
+  })
+
   test('unreadable history yields a raise-only verdict line and logs the history failure once across two prompts', async () => {
     const { on, handlers } = recordHandlers()
     register(on, OPTIONS)
@@ -262,13 +300,26 @@ describe('register', () => {
       }
     })
 
-    test('a failed warm-up is swallowed', async () => {
+    test('a warm-up that answers is reported in the transcript', async () => {
       const { on, handlers } = recordHandlers()
       register(on, OPTIONS)
-      const { $, logs } = makeDollar({ fetch: async () => Promise.reject(new Error('offline')) })
+      const { $, transcript, settled } = makeDollar()
 
       await start(handlers, $, true)
-      expect(logs).toEqual([])
+      await settled()
+      expect(transcript).toHaveLength(1)
+      expect(transcript[0]).toContain('classifier warmed up in')
+    })
+
+    test('a failed warm-up goes to the debug log alone', async () => {
+      const { on, handlers } = recordHandlers()
+      register(on, OPTIONS)
+      const { $, logs, transcript, settled } = makeDollar({ fetch: async () => Promise.reject(new Error('offline')) })
+
+      await start(handlers, $, true)
+      await settled()
+      expect(transcript).toEqual([])
+      expect(logs).toEqual(['[model-router] warm-up failed (offline)'])
     })
   })
 })
