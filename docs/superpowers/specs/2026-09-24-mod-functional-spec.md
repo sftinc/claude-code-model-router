@@ -141,9 +141,9 @@ default. Numbers and booleans: use it when its type matches, else the default.
 Keys and defaults: `provider` `auto`, `apiUrl` ``, `apiSecret` ``,
 `fastModel`, `balancedModel` and `deepModel` from `DEFAULT_TIERS` (`haiku`, `sonnet`, `opus`),
 `minUpgradeConfidence` 0.3, `minDowngradeConfidence` 0.6, `riskyThreshold` 0.7,
-`contextMessages` 6, `contextChars` 6000, `routeSubagentModel` true,
+`contextMessages` 30, `contextChars` 60000, `routeSubagentModel` true,
 `respectAgentModels` true, `routeMainEffort` true, `routeMainModel` false,
-`timeoutMs` 1500, `warmUp` true, `logDecisions` true.
+`timeoutMs` 2000, `warmUp` true, `logDecisions` true.
 
 **Backend.** `selectProvider(provider, apiUrl, apiSecret)` gives `'api'` or
 null (built-in). With the api, the URL is `endpoint(apiUrl)`.

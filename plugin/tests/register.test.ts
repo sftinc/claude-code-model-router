@@ -152,7 +152,7 @@ describe('register', () => {
     })
 
     await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('rename getUser'), promptNext)
-    expect(logs.some((line) => line.includes('within 1500ms'))).toBe(true)
+    expect(logs.some((line) => line.includes('within 2000ms'))).toBe(true)
 
     const received = await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'medium'))
     expect(received.model).toBe('claude-sonnet-5')

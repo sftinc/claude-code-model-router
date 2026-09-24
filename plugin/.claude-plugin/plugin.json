@@ -80,13 +80,13 @@
       "type": "number",
       "title": "Context messages",
       "description": "How many recent messages go with a main-loop prompt; 0 sends the prompt alone",
-      "default": 6
+      "default": 30
     },
     "contextChars": {
       "type": "number",
       "title": "Context characters",
       "description": "Character budget for those messages; the oldest are dropped first",
-      "default": 6000
+      "default": 60000
     },
     "routeSubagentModel": {
       "type": "boolean",
@@ -116,7 +116,7 @@
       "type": "number",
       "title": "Classifier timeout (ms)",
       "description": "Budget in milliseconds for each classification; a slower answer is ignored and routing is skipped for that request",
-      "default": 1500
+      "default": 2000
     },
     "warmUp": {
       "type": "boolean",

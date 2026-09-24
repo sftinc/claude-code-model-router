@@ -59,12 +59,12 @@ Options live under `pluginConfigs` in `~/.claude/settings.json`. The key is `mod
 | `fastModel` / `balancedModel` / `deepModel` | `haiku` / `sonnet` / `opus` | Alias or full id |
 | `minUpgradeConfidence` / `minDowngradeConfidence` | 0.3 / 0.6 | Minimum confidence for a move to a costlier / cheaper setting |
 | `riskyThreshold` | 0.7 | Above it: deep tier, at least high effort |
-| `contextMessages` / `contextChars` | 6 / 6000 | Recent context sent with main-loop prompts |
+| `contextMessages` / `contextChars` | 30 / 60000 | Recent context sent with main-loop prompts |
 | `routeSubagentModel` | true | |
 | `respectAgentModels` | true | Keeps a model the Agent tool named. A model set in an agent's definition isn't visible to the router and isn't protected |
 | `routeMainEffort` | true | |
 | `routeMainModel` | false | Switching models invalidates the prompt cache |
-| `timeoutMs` | 1500 | Wait budget for the classifier |
+| `timeoutMs` | 2000 | Wait budget for the classifier |
 | `warmUp` | true | Sends one throwaway classification when an interactive session starts, so the first prompt doesn't hit a cold classifier |
 | `logDecisions` | true | |
 
