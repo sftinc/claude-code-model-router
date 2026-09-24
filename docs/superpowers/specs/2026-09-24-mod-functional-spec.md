@@ -35,8 +35,8 @@ import them.
 | `effortName(level)` | fn | Level number → `Effort`: clamp to 0..3, dropping any fraction |
 | `effortRank(effort)` | fn | `string \| number \| undefined` → position on the effort ladder, `4` for `'max'`, `null` for anything else (numbers, undefined, unknown names) |
 | `rankOf(model, tiers)` | fn | Model id → tier position 0..2 or `null` (rules below) |
-| `requestModelId(model)` | fn | Alias → full id (table below); anything else returned unchanged |
-| `supportsEffort(model)` | fn | `false` when the id contains `haiku` (any case), else `true` |
+| `requestModelId(model)` | fn | Alias → full id from the model list (below); anything else returned unchanged |
+| `supportsEffort(model)` | fn | The `effort` flag of the listed model whose alias the id contains (any case); `true` for a model not in the list |
 | `route(decision, current, config)` | fn | `current` is `{ model: string; effort?: string \| number; pinned?: boolean }`; returns `Routing` (rules below) |
 | `pendingDecisions()` | fn | Returns `{ put(d: Decision \| null): void; take(): Decision \| null }` (rules below) |
 | `describeSetup(provider, url, switches, builtinByChoice?)` | fn | `switches` is `{ subagentModel; mainEffort; mainModel }` booleans; returns one line |
@@ -68,12 +68,15 @@ import them.
 
 **Tier position (`rankOf`).** Compare case-insensitively. First, if the model
 id contains a tier's configured value (checked fast, balanced, deep; an empty
-value never matches), that tier's position. Otherwise by family word: `haiku`
-0, `sonnet` 1, `opus`, `fable` or `mythos` 2. Otherwise unknown (`null`).
+value never matches), that tier's position. Otherwise the tier of the first
+listed model whose alias the id contains. Otherwise unknown (`null`).
 
-**Alias table (`requestModelId`).** Trim and lowercase before lookup:
-`haiku` → `claude-haiku-4-5-20251001`, `sonnet` → `claude-sonnet-5`, `opus` →
-`claude-opus-5-5`, `fable` → `claude-fable-5-1`.
+**Model list (`plugin/hooks/models.ts`).** The one place models are described.
+`MODELS` gives each model's alias, full id (absent when none exists yet), usual
+tier and whether it takes effort; `DEFAULT_TIERS` gives each tier's default
+alias. `requestModelId` trims and lowercases, then looks the alias up there.
+`plugin.json` repeats `DEFAULT_TIERS` as its option defaults, and a test holds
+the two together.
 
 **Confidence gate.** A proposed move from a current position (possibly
 unknown) to a wanted position, with a confidence (possibly null):
@@ -136,7 +139,7 @@ marked as unknown rather than omitted.
 **Options.** Strings: use the option when it is a non-empty string, else the
 default. Numbers and booleans: use it when its type matches, else the default.
 Keys and defaults: `provider` `auto`, `apiUrl` ``, `apiSecret` ``,
-`fastModel` `haiku`, `balancedModel` `sonnet`, `deepModel` `opus`,
+`fastModel`, `balancedModel` and `deepModel` from `DEFAULT_TIERS` (`haiku`, `sonnet`, `opus`),
 `minUpgradeConfidence` 0.3, `minDowngradeConfidence` 0.6, `riskyThreshold` 0.7,
 `contextMessages` 6, `contextChars` 6000, `routeSubagentModel` true,
 `respectAgentModels` true, `routeMainEffort` true, `routeMainModel` false,

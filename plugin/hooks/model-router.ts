@@ -10,6 +10,7 @@ import type { Args, EngineInterface, Register } from 'claude-code'
 
 import { buildRecent, builtinDecision, endpoint, readVerdict, requestHeaders, selectProvider } from './client.ts'
 import type { RecentMessage, Situation } from './client.ts'
+import { DEFAULT_TIERS } from './models.ts'
 import {
   TIER_ORDER,
   describeDecision,
@@ -62,9 +63,9 @@ const OPTION_DEFAULTS: Readonly<Options> = {
   provider: 'auto',
   apiUrl: '',
   apiSecret: '',
-  fastModel: 'haiku',
-  balancedModel: 'sonnet',
-  deepModel: 'opus',
+  fastModel: DEFAULT_TIERS.fast,
+  balancedModel: DEFAULT_TIERS.balanced,
+  deepModel: DEFAULT_TIERS.deep,
   minUpgradeConfidence: 0.3,
   minDowngradeConfidence: 0.6,
   riskyThreshold: 0.7,

@@ -5,6 +5,8 @@
  * what a request currently carries, it works out the model and effort to send,
  * and it formats the short lines the hooks write to the log and status bar.
  */
+import { MODELS } from './models.ts'
+import type { Model } from './models.ts'
 
 export type Provider = 'api'
 
@@ -66,17 +68,15 @@ export function effortRank(effort: string | number | undefined): number | null {
   return index === -1 ? null : index
 }
 
-const FAMILY_RANK: readonly (readonly [string, number])[] = [
-  ['haiku', 0],
-  ['sonnet', 1],
-  ['opus', 2],
-  ['fable', 2],
-  ['mythos', 2],
-]
+/** The listed model whose alias appears in a model id or alias, if any. */
+function knownModel(model: string): Model | undefined {
+  const id = model.toLowerCase()
+  return MODELS.find((known) => id.includes(known.alias))
+}
 
 /**
  * A model's tier position. Configured tier values win (checked cheapest
- * first); failing that, the model family's usual tier; otherwise unknown.
+ * first); failing that, the listed model's usual tier; otherwise unknown.
  */
 export function rankOf(model: string, tiers: Tiers): number | null {
   const id = model.toLowerCase()
@@ -84,27 +84,19 @@ export function rankOf(model: string, tiers: Tiers): number | null {
     const configured = tiers[tier].trim().toLowerCase()
     if (configured !== '' && id.includes(configured)) return position
   }
-  for (const [family, position] of FAMILY_RANK) {
-    if (id.includes(family)) return position
-  }
-  return null
-}
-
-const ALIASES: Readonly<Record<string, string>> = {
-  haiku: 'claude-haiku-4-5-20251001',
-  sonnet: 'claude-sonnet-5',
-  opus: 'claude-opus-5-5',
-  fable: 'claude-fable-5-1',
+  const known = knownModel(model)
+  return known ? TIER_ORDER.indexOf(known.tier) : null
 }
 
 /** The full model id for a short alias; anything that isn't an alias comes back untouched. */
 export function requestModelId(model: string): string {
-  return ALIASES[model.trim().toLowerCase()] ?? model
+  const alias = model.trim().toLowerCase()
+  return MODELS.find((known) => known.alias === alias)?.id ?? model
 }
 
-/** Haiku models take no reasoning effort. */
+/** Whether a model takes a reasoning effort; one that isn't listed is assumed to. */
 export function supportsEffort(model: string): boolean {
-  return !model.toLowerCase().includes('haiku')
+  return knownModel(model)?.effort ?? true
 }
 
 // ---------------------------------------------------------------------------

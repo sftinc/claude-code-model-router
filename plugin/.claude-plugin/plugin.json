@@ -43,7 +43,7 @@
     "fastModel": {
       "type": "string",
       "title": "Fast tier model",
-      "description": "Sent when the classifier rates the work as needing little judgment. An alias (haiku, sonnet, opus, fable) or a full model id",
+      "description": "Sent when the classifier rates the work as needing little judgment. An alias from the model list in hooks/models.ts, or a full model id",
       "default": "haiku"
     },
     "balancedModel": {
