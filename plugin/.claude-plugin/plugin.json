@@ -1,6 +1,5 @@
 {
   "name": "model-router",
-  "version": "0.1.0",
   "description": "Routes each turn and subagent to a model tier and reasoning effort using a classifier behind any server that speaks POST /v1/classify (model-router-api on Cloudflare Workers AI today), falling back to the engine's built-in classifier.",
   "author": {
     "name": "SFT Inc",
