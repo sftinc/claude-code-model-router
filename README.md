@@ -86,6 +86,8 @@ CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test plugin   # the plugin
 cd worker && npm test                                              # the Worker
 ```
 
+`plugin/scripts/e2e.sh` runs real headless sessions with the plugin loaded, in plan mode so nothing gets carried out. It checks the router's decisions in each session's debug log: a trivial subagent goes to haiku, a model named on the Agent tool is kept, and a risky prompt forces the deep tier. It needs the api configured, and each scenario is a real session that costs about $0.10–0.30. Pass scenario names to run only some of them.
+
 ## Privacy
 
 With an API configured, each prompt and up to `contextChars` of recent conversation go to it. With `COLLECT_LOG=true`, the AI Gateway's logs keep them.
