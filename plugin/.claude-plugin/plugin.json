@@ -1,0 +1,128 @@
+{
+  "name": "model-router",
+  "version": "0.1.0",
+  "description": "Routes each turn and subagent to a model tier and reasoning effort using a classifier behind any server that speaks POST /v1/classify (model-router-api on Cloudflare Workers AI today), falling back to the engine's built-in classifier.",
+  "author": {
+    "name": "SFT Inc",
+    "url": "https://github.com/sftinc"
+  },
+  "repository": "https://github.com/sftinc/claude-code-model-router",
+  "keywords": [
+    "claude-code",
+    "function-hooks",
+    "model-selection",
+    "reasoning-effort",
+    "classifier",
+    "cloudflare-workers"
+  ],
+  "userConfig": {
+    "provider": {
+      "type": "string",
+      "title": "Classifier backend",
+      "description": "auto uses the API when apiUrl and apiSecret are both set and the built-in classifier otherwise; api asks for the API and warns when it is not configured; builtin always uses the built-in classifier",
+      "default": "auto",
+      "options": [
+        "auto",
+        "api",
+        "builtin"
+      ]
+    },
+    "apiUrl": {
+      "type": "string",
+      "title": "Classifier API URL",
+      "description": "Base URL of a server that speaks POST /v1/classify (e.g. https://model-router-api.<subdomain>.workers.dev), no trailing path",
+      "default": ""
+    },
+    "apiSecret": {
+      "type": "string",
+      "title": "Classifier API secret",
+      "description": "Bearer secret the API expects; the Worker's ROUTER_SECRET",
+      "default": "",
+      "sensitive": true
+    },
+    "fastModel": {
+      "type": "string",
+      "title": "Fast tier model",
+      "description": "Sent when the classifier rates the work as needing little judgment. An alias (haiku, sonnet, opus, fable) or a full model id",
+      "default": "haiku"
+    },
+    "balancedModel": {
+      "type": "string",
+      "title": "Balanced tier model",
+      "description": "Sent for everyday engineering work of moderate difficulty. An alias or a full model id",
+      "default": "sonnet"
+    },
+    "deepModel": {
+      "type": "string",
+      "title": "Deep tier model",
+      "description": "Sent for demanding or high-stakes work, and whenever the risk threshold is crossed. An alias or a full model id",
+      "default": "opus"
+    },
+    "minUpgradeConfidence": {
+      "type": "number",
+      "title": "Upgrade confidence",
+      "description": "Lowest classifier confidence (0 to 1) needed to move to a more capable model or higher effort; an answer with no confidence always may",
+      "default": 0.3
+    },
+    "minDowngradeConfidence": {
+      "type": "number",
+      "title": "Downgrade confidence",
+      "description": "Lowest classifier confidence (0 to 1) needed to move to a cheaper model or lower effort; an answer with no confidence never may",
+      "default": 0.6
+    },
+    "riskyThreshold": {
+      "type": "number",
+      "title": "Risk threshold",
+      "description": "Above this probability that the act is risky, the deep tier and at least high effort are forced",
+      "default": 0.7
+    },
+    "contextMessages": {
+      "type": "number",
+      "title": "Context messages",
+      "description": "How many recent messages go with a main-loop prompt; 0 sends the prompt alone",
+      "default": 6
+    },
+    "contextChars": {
+      "type": "number",
+      "title": "Context characters",
+      "description": "Character budget for those messages; the oldest are dropped first",
+      "default": 6000
+    },
+    "routeSubagentModel": {
+      "type": "boolean",
+      "title": "Route subagent models",
+      "description": "Choose a model for every new subagent from its own classification (forked subagents inherit their parent's model instead)",
+      "default": true
+    },
+    "respectAgentModels": {
+      "type": "boolean",
+      "title": "Respect named subagent models",
+      "description": "Keep a model the Agent tool named for a subagent unless risk forces an upgrade. Covers only the Agent tool's model parameter; a model set in an agent's definition isn't visible to the router",
+      "default": true
+    },
+    "routeMainEffort": {
+      "type": "boolean",
+      "title": "Route main-loop effort",
+      "description": "Set the main loop's reasoning effort from the classification; needs the API, since the built-in classifier gives no effort",
+      "default": true
+    },
+    "routeMainModel": {
+      "type": "boolean",
+      "title": "Route main-loop model",
+      "description": "Let the router swap the main conversation's model between tiers. Each swap starts the prompt cache afresh, which costs time and tokens, so leave this off unless you want it",
+      "default": false
+    },
+    "timeoutMs": {
+      "type": "number",
+      "title": "Classifier timeout (ms)",
+      "description": "Budget in milliseconds for each classification; a slower answer is ignored and routing is skipped for that request",
+      "default": 800
+    },
+    "logDecisions": {
+      "type": "boolean",
+      "title": "Log decisions",
+      "description": "Log the setup, each classification and each routing choice, and show the status line; warnings and failures are logged either way",
+      "default": true
+    }
+  }
+}

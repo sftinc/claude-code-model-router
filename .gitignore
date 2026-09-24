@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# OS files
+.DS_Store
+
+# Worker: wrangler's local state and secrets
+.wrangler/
+.dev.vars
+
+# Generated type declarations (see "Development" in the README)
+# Written by `npm run typecheck` (wrangler types)
+worker/worker-configuration.d.ts
+# Written by `/plugin-types plugin`; Anthropic's declarations, not ours to publish
+plugin/.claude/types/
+
+# Local agent workspaces
+.superpowers/

@@ -1,0 +1,15 @@
+{
+  "name": "sftinc",
+  "description": "Claude Code plugins from SFT Inc.",
+  "owner": {
+    "name": "SFT Inc",
+    "url": "https://github.com/sftinc"
+  },
+  "plugins": [
+    {
+      "name": "model-router",
+      "source": "./plugin",
+      "description": "Routes each turn and subagent to a model tier and reasoning effort using a classifier API, falling back to the engine's built-in classifier."
+    }
+  ]
+}

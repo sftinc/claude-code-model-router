@@ -1,0 +1,4 @@
+{
+  "description": "Classifies each prompt and subagent (POST /v1/classify, or the built-in classifier) and routes the main loop's effort and model at turn.step and each subagent's model at agent.spawn, failing open.",
+  "modules": ["./model-router.ts"]
+}
