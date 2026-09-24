@@ -94,6 +94,11 @@ export function requestModelId(model: string): string {
   return MODELS.find((known) => known.alias === alias)?.id ?? model
 }
 
+/** The name a line shows for a model: its alias when it's listed, otherwise as given. */
+export function modelAlias(model: string): string {
+  return knownModel(model)?.alias ?? model
+}
+
 /** Whether a model takes a reasoning effort; one that isn't listed is assumed to. */
 export function supportsEffort(model: string): boolean {
   return knownModel(model)?.effort ?? true
@@ -116,11 +121,16 @@ function clearsBar(from: number | null, to: number, confidence: number | null, c
 
 const num = (value: number | null): string => (value === null ? '?' : value.toFixed(2))
 
+/** Whether a decision's risk forces the deep tier, whatever else it says. */
+function riskForced(decision: Decision, config: PolicyConfig): boolean {
+  return decision.risky !== null && decision.risky > config.riskyThreshold
+}
+
 /** Route one request: which model and effort the decision asks for, given what it carries now. */
 export function route(decision: Decision | null, current: Current, config: PolicyConfig): Routing {
   if (!decision) return { model: null, effort: null, reason: 'no decision, request left as is' }
 
-  const forced = decision.risky !== null && decision.risky > config.riskyThreshold
+  const forced = riskForced(decision, config)
   const tier: Tier = forced ? 'deep' : decision.tier
   const level = forced ? Math.max(decision.effort ?? 0, 2) : decision.effort
 
@@ -192,8 +202,8 @@ export function route(decision: Decision | null, current: Current, config: Polic
  * no telling which one it answers. A null entry is a prompt whose
  * classification failed, and it still counts as a prompt.
  */
-export function pendingDecisions(): { put(d: Decision | null): void; take(): Decision | null } {
-  let since: (Decision | null)[] = []
+export function pendingDecisions<T = Decision>(): { put(d: T | null): void; take(): T | null } {
+  let since: (T | null)[] = []
   return {
     put(d) {
       // Past two entries the answer is "nothing" either way; don't grow further.
@@ -244,6 +254,26 @@ export function describeDecision(decision: Decision | null, ms: number | null): 
   if (decision.upOnly) line += ', raise-only'
   const trailer = [decision.classifier, time].filter((bit): bit is string => bit !== null && bit !== '')
   return trailer.length === 0 ? line : `${line} (${trailer.join(', ')})`
+}
+
+const percent = (value: number): string => `${Math.round(value * 100)}%`
+
+/**
+ * What a change is credited to: the risk when it forced the deep tier,
+ * otherwise the confidence given; null when neither is known.
+ */
+export function changeBasis(decision: Decision | null, confidence: number | null, config: PolicyConfig): string | null {
+  if (decision && riskForced(decision, config)) return `risk ${percent(decision.risky ?? 0)}`
+  return confidence === null ? null : percent(confidence)
+}
+
+/**
+ * One part of a routed line: `model (sonnet)` when it stays,
+ * `model (sonnet → haiku @ 90%)` when it changes.
+ */
+export function describeMove(name: string, from: string, to: string | null = null, basis: string | null = null): string {
+  if (to === null) return `${name} (${from})`
+  return `${name} (${from} → ${to}${basis === null ? '' : ` @ ${basis}`})`
 }
 
 /**

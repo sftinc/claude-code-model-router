@@ -6,16 +6,19 @@
  * the rest of the turn; agent.spawn classifies and routes a subagent on the
  * spot. Every failure leaves the request as it was.
  */
-import type { Args, EngineInterface, Register } from 'claude-code'
+import type { AgentSpawnResult, Args, EngineInterface, Register } from 'claude-code'
 
 import { buildRecent, builtinDecision, endpoint, readVerdict, requestHeaders, selectProvider } from './client.ts'
 import type { RecentMessage, Situation } from './client.ts'
 import { DEFAULT_TIERS } from './models.ts'
 import {
   TIER_ORDER,
+  changeBasis,
   describeDecision,
+  describeMove,
   describeSetup,
   describeStatus,
+  modelAlias,
   pendingDecisions,
   requestModelId,
   route,
@@ -24,7 +27,6 @@ import {
 import type { Decision, Effort, PolicyConfig, Provider, Routing } from './policy.ts'
 
 const TAG = '[model-router] '
-const AS_IS = 'sending the request as is'
 
 /** The engine and the event payloads, as Claude Code declares them. */
 type Engine = EngineInterface
@@ -100,7 +102,7 @@ type Runtime = {
   url: string
   mainCanChange: boolean
   once: { setup: boolean; apiWarning: boolean; historyWarning: boolean }
-  pending: ReturnType<typeof pendingDecisions>
+  pending: ReturnType<typeof pendingDecisions<Classified>>
   turn: { id: string; change: Change | null } | null
 }
 
@@ -119,16 +121,18 @@ function createRuntime(opts: Options): Runtime {
     // The built-in classifier gives no effort, so main effort needs the api.
     mainCanChange: opts.routeMainModel || (opts.routeMainEffort && backend === 'api'),
     once: { setup: false, apiWarning: false, historyWarning: false },
-    pending: pendingDecisions(),
+    pending: pendingDecisions<Classified>(),
     turn: null,
   }
 }
 
 // ---------------------------------------------------------------------------
-// Logging. Only a change the router applies, and the warm-up, reach the
-// transcript (`tell`); the rest goes to the debug log alone (`note`), so the
-// chat isn't cluttered with turns that were left as they were. logDecisions
-// gates both. Warnings and failures (`warn`) always reach the debug log.
+// Logging. The transcript gets one short line per routed turn or subagent,
+// and the warm-up's result (`tell`), so the router is visibly running without
+// cluttering the chat; the details behind them, such as whole api replies, go
+// to the debug log alone (`note`). logDecisions gates both. A line carrying a
+// failure (`warn`) is always written, so a router that couldn't do its job
+// says so.
 
 function tell($: Engine, rt: Runtime, text: string): void {
   if (rt.opts.logDecisions) $.ui.log(TAG + text)
@@ -139,7 +143,7 @@ function note($: Engine, rt: Runtime, text: string): void {
 }
 
 function warn($: Engine, text: string): void {
-  $.ui.log(TAG + text, { to: 'debug' })
+  $.ui.log(TAG + text)
 }
 
 function setupOnce($: Engine, rt: Runtime): void {
@@ -162,7 +166,14 @@ function apiWarningOnce($: Engine, rt: Runtime): void {
 }
 
 // ---------------------------------------------------------------------------
-// Classification. Never throws; any trouble means no decision.
+// Classification. Never throws; any trouble means no decision, and says why.
+
+/** A classification's outcome: the decision, or the short reason there is none. */
+type Classified = { decision: Decision | null; failure: string | null }
+
+const failed = (failure: string): Classified => ({ decision: null, failure })
+
+const errorText = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
 type Race<T> = { settled: true; value: T } | { settled: false }
 
@@ -174,7 +185,7 @@ function beforeTimer<T>(answer: Promise<T>, timer: Promise<void>): Promise<Race<
   ])
 }
 
-async function askApi($: Engine, rt: Runtime, situation: Situation): Promise<Decision | null> {
+async function askApi($: Engine, rt: Runtime, situation: Situation, who: string): Promise<Classified> {
   const { timeoutMs, apiSecret } = rt.opts
   const reply = $.http.fetch(rt.url, {
     method: 'POST',
@@ -182,39 +193,31 @@ async function askApi($: Engine, rt: Runtime, situation: Situation): Promise<Dec
     body: JSON.stringify(situation),
   })
   const outcome = await beforeTimer(reply, $.clock.sleep(timeoutMs))
-  if (!outcome.settled) {
-    warn($, `no reply from the api within ${timeoutMs}ms; ${AS_IS}`)
-    return null
-  }
-  if (!outcome.value.ok) {
-    warn($, `api returned HTTP ${outcome.value.status}; ${AS_IS}`)
-    return null
-  }
-  const decision = readVerdict(outcome.value.text)
-  if (!decision) warn($, `api reply was a malformed verdict; ${AS_IS}`)
-  return decision
+  if (!outcome.settled) return failed(`no reply from the api within ${timeoutMs}ms`)
+  const { ok, status, text } = outcome.value
+  note($, rt, `api reply for ${who}: HTTP ${status} ${text}`)
+  if (!ok) return failed(`api returned HTTP ${status}`)
+  const decision = readVerdict(text)
+  return decision ? { decision, failure: null } : failed('api reply was a malformed verdict')
 }
 
-async function askBuiltin($: Engine, rt: Runtime, prompt: string): Promise<Decision | null> {
+async function askBuiltin($: Engine, rt: Runtime, prompt: string, who: string): Promise<Classified> {
   const { timeoutMs } = rt.opts
   const label = $.model.classify(prompt, [...TIER_ORDER])
   const outcome = await beforeTimer(label, $.clock.sleep(timeoutMs))
-  if (!outcome.settled) {
-    warn($, `no reply from the built-in classifier within ${timeoutMs}ms; ${AS_IS}`)
-    return null
-  }
-  return builtinDecision(outcome.value)
+  if (!outcome.settled) return failed(`no reply from the built-in classifier within ${timeoutMs}ms`)
+  note($, rt, `builtin label for ${who}: ${String(outcome.value)}`)
+  return { decision: builtinDecision(outcome.value), failure: null }
 }
 
-async function classify($: Engine, rt: Runtime, situation: Situation, upOnly: boolean): Promise<Decision | null> {
+async function classify($: Engine, rt: Runtime, situation: Situation, upOnly: boolean, who: string): Promise<Classified> {
   try {
-    const decision =
-      rt.backend === 'api' ? await askApi($, rt, situation) : await askBuiltin($, rt, situation.prompt)
-    return decision ? { ...decision, upOnly } : null
+    const got =
+      rt.backend === 'api' ? await askApi($, rt, situation, who) : await askBuiltin($, rt, situation.prompt, who)
+    return got.decision ? { decision: { ...got.decision, upOnly }, failure: null } : got
   } catch (error) {
-    const why = error instanceof Error ? error.message : String(error)
-    warn($, `classifier threw (${why}); ${AS_IS}`)
-    return null
+    note($, rt, `classifier threw for ${who}: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`)
+    return failed(`classifier threw: ${errorText(error)}`)
   }
 }
 
@@ -237,28 +240,29 @@ function warmUp($: Engine, rt: Runtime): void {
         body: JSON.stringify(WARM_UP),
       })
       const elapsed = (await $.clock.now()) - started
+      note($, rt, `api reply for warm-up: HTTP ${reply.status} ${reply.text}`)
       if (reply.ok) tell($, rt, `classifier warmed up in ${elapsed}ms`)
-      else warn($, `warm-up got HTTP ${reply.status}`)
+      else warn($, `warm-up failed (api returned HTTP ${reply.status})`)
     } catch (error) {
-      warn($, `warm-up failed (${error instanceof Error ? error.message : String(error)})`)
+      warn($, `warm-up failed (${errorText(error)})`)
     }
   })
 }
 
-/** Classifies, writes the verdict line, and returns the decision. */
+/** Classifies, writes the verdict to the debug log, and returns the outcome. */
 async function classifyAndReport(
   $: Engine,
   rt: Runtime,
   situation: Situation,
   upOnly: boolean,
-  about: string,
-): Promise<Decision | null> {
+  who: string,
+): Promise<Classified> {
   const started = await $.clock.now()
-  const decision = await classify($, rt, situation, upOnly)
+  const got = await classify($, rt, situation, upOnly, who)
   const elapsed = (await $.clock.now()) - started
   const via = rt.backend === 'api' ? 'api' : 'builtin'
-  note($, rt, `verdict via ${via}${about}: ${describeDecision(decision, elapsed)}`)
-  return decision
+  note($, rt, `verdict via ${via} for ${who}: ${describeDecision(got.decision, elapsed)}`)
+  return got
 }
 
 // ---------------------------------------------------------------------------
@@ -291,7 +295,7 @@ async function onPrompt($: Engine, rt: Runtime, e: PromptEvent): Promise<void> {
   }
 
   const situation: Situation = recent ? { source: 'main', prompt, recent } : { source: 'main', prompt }
-  rt.pending.put(await classifyAndReport($, rt, situation, upOnly, ''))
+  rt.pending.put(await classifyAndReport($, rt, situation, upOnly, 'main loop'))
 }
 
 // ---------------------------------------------------------------------------
@@ -318,28 +322,42 @@ function shapeChange(routing: Routing, e: StepEvent, opts: Options): Shaped {
   return { change, stripped, sendsTo }
 }
 
-function explainChange(e: StepEvent, shaped: Shaped, routing: Routing): string {
-  const said: string[] = []
-  if (shaped.change?.model !== undefined) said.push(`model ${e.model} → ${shaped.change.model}`)
-  if (shaped.stripped) said.push(`effort dropped since ${shaped.sendsTo} takes none`)
-  else if (shaped.change?.effort !== undefined) said.push(`effort ${e.effort ?? 'unset'} → ${shaped.change.effort}`)
-  const routed = routing.model !== null || routing.effort !== null
-  return `main loop: ${said.join(' and ')}${routed ? ` — ${routing.reason}` : ''}`
+/** The line's body: model and effort, each with an arrow when it changes. */
+function describeTurn(e: StepEvent, shaped: Shaped, decision: Decision | null, policy: PolicyConfig): string {
+  const model = shaped.change?.model
+  const parts = [
+    describeMove(
+      'model',
+      modelAlias(e.model),
+      model === undefined ? null : modelAlias(model),
+      changeBasis(decision, decision?.confidence ?? null, policy),
+    ),
+  ]
+  const effort = shaped.change?.effort
+  if (shaped.stripped) parts.push('effort (dropped)')
+  else if (effort !== undefined) {
+    const basis = changeBasis(decision, decision?.effortConfidence ?? null, policy)
+    parts.push(describeMove('effort', String(e.effort ?? 'unset'), effort, basis))
+  } else if (e.effort !== undefined) parts.push(describeMove('effort', String(e.effort)))
+  return parts.join(', ')
 }
 
 async function routeTurn($: Engine, rt: Runtime, e: StepEvent): Promise<Change | null> {
-  const decision = rt.pending.take()
+  const { decision, failure } = rt.pending.take() ?? { decision: null, failure: null }
   const routing = route(decision, { model: e.model, effort: e.effort }, rt.policy)
   const shaped = shapeChange(routing, e, rt.opts)
 
-  if (shaped.change !== null) {
-    tell($, rt, explainChange(e, shaped, routing))
-  } else if (rt.mainCanChange) {
+  if (shaped.change !== null || rt.mainCanChange) {
+    const line = `main loop: ${describeTurn(e, shaped, decision, rt.policy)}`
+    if (failure) warn($, `${line}, ${failure}`)
+    else tell($, rt, line)
+  }
+  if (rt.mainCanChange) {
     const unapplied =
       routing.model !== null && !rt.opts.routeMainModel
         ? ` (${routing.model} not applied: main-model switching is disabled)`
         : ''
-    note($, rt, `main loop as sent${unapplied} — ${routing.reason}`)
+    note($, rt, `main loop: ${routing.reason}${unapplied}`)
   }
   // Shown only while the current turn is changed, so a turn sent as is clears it.
   if (rt.opts.logDecisions && rt.mainCanChange) {
@@ -351,18 +369,39 @@ async function routeTurn($: Engine, rt: Runtime, e: StepEvent): Promise<Change |
 // ---------------------------------------------------------------------------
 // agent.spawn
 
-async function onSpawn($: Engine, rt: Runtime, e: SpawnEvent): Promise<string | null> {
-  const kind = e.subagentType ?? 'subagent'
+/** Where the router sends a subagent: the model to set (null: leave it), and what to report. */
+type SpawnRouting = { model: string | null; moved: string | null; failure: string | null }
+
+async function routeSpawn($: Engine, rt: Runtime, e: SpawnEvent): Promise<SpawnRouting> {
+  const who = `subagent ${e.subagentType}`
   const situation: Situation = { source: 'subagent', prompt: e.prompt }
   if (typeof e.description === 'string') situation.description = e.description
   if (typeof e.subagentType === 'string') situation.agentType = e.subagentType
-  const decision = await classifyAndReport($, rt, situation, false, ` for ${kind}`)
+  const { decision, failure } = await classifyAndReport($, rt, situation, false, who)
 
   const pinned = rt.opts.respectAgentModels && e.model !== undefined
-  const routing = route(decision, { model: e.model ?? e.parentModel, pinned }, rt.policy)
-  if (routing.model === null) note($, rt, `spawn of ${kind} left alone (${routing.reason})`)
-  else tell($, rt, `spawn of ${kind} goes to ${routing.model} (${routing.reason})`)
-  return routing.model
+  const current = e.model ?? e.parentModel
+  const routing = route(decision, { model: current, pinned }, rt.policy)
+  note($, rt, `${who}: ${routing.reason}`)
+  if (routing.model === null) return { model: null, moved: null, failure }
+  const basis = changeBasis(decision, decision?.confidence ?? null, rt.policy)
+  return { model: routing.model, moved: describeMove('model', modelAlias(current), modelAlias(routing.model), basis), failure }
+}
+
+/**
+ * Reports what the subagent runs on. An unchanged one shows the model the
+ * engine resolved, since its definition may name one the router can't see.
+ */
+function reportSpawn($: Engine, rt: Runtime, e: SpawnEvent, sent: SpawnRouting, started: AgentSpawnResult): void {
+  const ranOn = started.deny === undefined ? started.model : undefined
+  const parts: string[] = []
+  if (sent.moved !== null) parts.push(sent.moved)
+  else if (ranOn !== undefined) parts.push(describeMove('model', modelAlias(ranOn)))
+  if (sent.failure !== null) parts.push(sent.failure)
+  if (parts.length === 0) return
+  const line = `subagent ${e.subagentType}: ${parts.join(', ')}`
+  if (sent.failure !== null) warn($, line)
+  else tell($, rt, line)
 }
 
 // ---------------------------------------------------------------------------
@@ -397,7 +436,9 @@ export const register: Register = (on, options) => {
     if (!rt.opts.routeSubagentModel || e.fork) return next(e)
     apiWarningOnce($, rt)
     if (typeof e.prompt !== 'string' || e.prompt.trim() === '') return next(e)
-    const model = await onSpawn($, rt, e)
-    return next(model === null ? e : { ...e, model })
+    const sent = await routeSpawn($, rt, e)
+    const started = await next(sent.model === null ? e : { ...e, model: sent.model })
+    reportSpawn($, rt, e, sent, started)
+    return started
   })
 }

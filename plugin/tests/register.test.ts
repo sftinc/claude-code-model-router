@@ -161,9 +161,9 @@ describe('register', () => {
     })
 
     await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('rename getUser'), promptNext)
-    expect(logs.some((line) => line.includes('within 2000ms'))).toBe(true)
-
     const received = await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'medium'))
+
+    expect(logs).toContain('[model-router] main loop: model (sonnet), effort (medium), no reply from the api within 2000ms')
     expect(received.model).toBe('claude-sonnet-5')
     expect(received.effort).toBe('medium')
   })
@@ -205,12 +205,12 @@ describe('register', () => {
     expect(statuses).toEqual(['router balanced@0.90 ⇒ xhigh', undefined])
   })
 
-  test('only a change reaches the transcript; verdicts, turns sent as is and warnings go to the debug log', async () => {
+  test('the transcript gets one line per turn, with the failure when there is one; details go to the debug log', async () => {
     const { on, handlers } = recordHandlers()
     register(on, OPTIONS)
     let ok = true
     const { $, logs, transcript } = makeDollar({
-      fetch: async () => ({ ok, status: ok ? 200 : 401, headers: {}, text: ok ? verdict() : '' }),
+      fetch: async () => ({ ok, status: ok ? 200 : 401, headers: {}, text: ok ? verdict() : 'bad secret' }),
     })
 
     await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('first'), promptNext)
@@ -219,10 +219,66 @@ describe('register', () => {
     await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('second'), promptNext)
     await stepThrough(handlers, $, stepOf('t2', 0, 'claude-sonnet-5', 'low'))
 
-    expect(transcript).toHaveLength(1)
-    expect(transcript[0]).toContain('effort low → xhigh')
-    expect(logs.some((line) => line.includes('HTTP 401'))).toBe(true)
-    expect(logs.some((line) => line.startsWith('[model-router] verdict via'))).toBe(true)
+    expect(transcript).toEqual([
+      '[model-router] main loop: model (sonnet), effort (low → xhigh @ 90%)',
+      '[model-router] main loop: model (sonnet), effort (low), api returned HTTP 401',
+    ])
+    expect(logs).toContain(`[model-router] api reply for main loop: HTTP 200 ${verdict()}`)
+    expect(logs).toContain('[model-router] api reply for main loop: HTTP 401 bad secret')
+    expect(logs.some((line) => line.startsWith('[model-router] verdict via api for main loop:'))).toBe(true)
+  })
+
+  test('a model change and a dropped effort show as aliases', async () => {
+    const { on, handlers } = recordHandlers()
+    register(on, OPTIONS)
+    const { $, transcript } = makeDollar({
+      fetch: async () => ({
+        ok: true,
+        status: 200,
+        headers: {},
+        text: verdict({ tier: { value: 'fast', confidence: 0.9 }, effort: { level: 1, confidence: 0.9 } }),
+      }),
+    })
+
+    await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('rename getUser'), promptNext)
+    await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'high'))
+
+    expect(transcript).toEqual(['[model-router] main loop: model (sonnet → haiku @ 90%), effort (dropped)'])
+  })
+
+  test('a subagent line shows the change, or the model it started on when left alone', async () => {
+    const { on, handlers } = recordHandlers()
+    register(on, OPTIONS)
+    let tier = 'fast'
+    const { $, transcript } = makeDollar({
+      fetch: async () => ({ ok: true, status: 200, headers: {}, text: verdict({ tier: { value: tier, confidence: 0.85 } }) }),
+    })
+    const spawn = (e: Record<string, unknown>) =>
+      (handlers['agent.spawn'] as (...a: unknown[]) => Promise<unknown>)($, e, async (got: { model?: string }) => ({
+        model: got.model ?? 'claude-haiku-4-5-20251001',
+        agentId: 'a1',
+      }))
+    const spawnEvent = { prompt: 'find callers', description: 'Find', subagentType: 'Explore', parentModel: 'claude-sonnet-5', fork: false }
+
+    await spawn(spawnEvent)
+    tier = 'balanced'
+    await spawn(spawnEvent)
+
+    expect(transcript).toEqual([
+      '[model-router] subagent Explore: model (sonnet → haiku @ 85%)',
+      '[model-router] subagent Explore: model (haiku)',
+    ])
+  })
+
+  test('with logDecisions off only a failure is written', async () => {
+    const { on, handlers } = recordHandlers()
+    register(on, { ...OPTIONS, logDecisions: false })
+    const { $, logs } = makeDollar({ fetch: async () => ({ ok: false, status: 500, headers: {}, text: '' }) })
+
+    await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('first'), promptNext)
+    await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'low'))
+
+    expect(logs).toEqual(['[model-router] main loop: model (sonnet), effort (low), api returned HTTP 500'])
   })
 
   test('with logDecisions off a change writes nothing', async () => {
@@ -311,15 +367,15 @@ describe('register', () => {
       expect(transcript[0]).toContain('classifier warmed up in')
     })
 
-    test('a failed warm-up goes to the debug log alone', async () => {
+    test('a failed warm-up is reported in the transcript', async () => {
       const { on, handlers } = recordHandlers()
       register(on, OPTIONS)
       const { $, logs, transcript, settled } = makeDollar({ fetch: async () => Promise.reject(new Error('offline')) })
 
       await start(handlers, $, true)
       await settled()
-      expect(transcript).toEqual([])
       expect(logs).toEqual(['[model-router] warm-up failed (offline)'])
+      expect(transcript).toEqual(logs)
     })
   })
 })

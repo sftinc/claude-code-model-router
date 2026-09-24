@@ -3,11 +3,14 @@ import { describe, expect, test } from 'claude-code/testing'
 import {
   EFFORT_ORDER,
   TIER_ORDER,
+  changeBasis,
   describeDecision,
+  describeMove,
   describeSetup,
   describeStatus,
   effortName,
   effortRank,
+  modelAlias,
   pendingDecisions,
   rankOf,
   requestModelId,
@@ -338,6 +341,25 @@ describe('log and status text', () => {
   const every = { subagentModel: true, mainEffort: true, mainModel: true }
   const none = { subagentModel: false, mainEffort: false, mainModel: false }
   const subagentOnly = { ...none, subagentModel: true }
+
+  test('a listed model shows as its alias, an unlisted one as given', () => {
+    expect(modelAlias(HAIKU)).toBe('haiku')
+    expect(modelAlias('claude-opus-5-5[1m]')).toBe('opus')
+    expect(modelAlias('gpt-9')).toBe('gpt-9')
+  })
+
+  test('a move shows the arrow only when it changes, and the basis only when there is one', () => {
+    expect(describeMove('model', 'sonnet')).toBe('model (sonnet)')
+    expect(describeMove('model', 'sonnet', 'haiku')).toBe('model (sonnet → haiku)')
+    expect(describeMove('effort', 'low', 'xhigh', '90%')).toBe('effort (low → xhigh @ 90%)')
+  })
+
+  test('a change is credited to the confidence, or to the risk when it forced the deep tier', () => {
+    expect(changeBasis(decide(), 0.876, CONFIG)).toBe('88%')
+    expect(changeBasis(decide(), null, CONFIG)).toBeNull()
+    expect(changeBasis(decide({ risky: 0.82 }), 0.9, CONFIG)).toBe('risk 82%')
+    expect(changeBasis(decide({ risky: 0.5 }), 0.9, CONFIG)).toBe('90%')
+  })
 
   test('setup with the api shows its endpoint and joins the enabled switches', () => {
     expect(describeSetup('api', 'https://router.test/v1/classify', every)).toBe(

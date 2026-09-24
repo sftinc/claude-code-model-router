@@ -38,10 +38,13 @@ import them.
 | `requestModelId(model)` | fn | Alias → full id from the model list (below); anything else returned unchanged |
 | `supportsEffort(model)` | fn | The `effort` flag of the listed model whose alias the id contains (any case); `true` for a model not in the list |
 | `route(decision, current, config)` | fn | `current` is `{ model: string; effort?: string \| number; pinned?: boolean }`; returns `Routing` (rules below) |
-| `pendingDecisions()` | fn | Returns `{ put(d: Decision \| null): void; take(): Decision \| null }` (rules below) |
+| `modelAlias(model)` | fn | The alias of the listed model whose alias the id contains; the model as given when none |
+| `pendingDecisions<T = Decision>()` | fn | Returns `{ put(d: T \| null): void; take(): T \| null }` (rules below) |
 | `describeSetup(provider, url, switches, builtinByChoice?)` | fn | `switches` is `{ subagentModel; mainEffort; mainModel }` booleans; returns one line |
 | `describeDecision(decision, ms)` | fn | `ms` may be null; returns one line |
 | `describeStatus(decision, change)` | fn | `change` is `{ model?: string; effort?: Effort }`; returns a short line |
+| `changeBasis(decision, confidence, config)` | fn | What a change is credited to: `risk 82%` when the decision's risk forces the deep tier, else the confidence as a whole percent, null when unknown |
+| `describeMove(name, from, to?, basis?)` | fn | `model (sonnet)` without `to`; `model (sonnet → haiku @ 90%)` with it, the `@` part only with a basis |
 
 `hooks/model-router.ts` must export `register` (type `Register` from
 `'claude-code'`).
@@ -154,12 +157,25 @@ line reports main effort as on only in that second case.
 
 **Log prefix.** Every log line starts `[model-router] `.
 
-**Where lines go.** Only a change the router applies (a main-loop request
-changed, a subagent sent to another model) and the warm-up's result reach the
-transcript. Every other line (setup, verdicts, requests sent as is, subagents
-left alone) goes to the debug log alone. `logDecisions` gates all of these.
-Warnings and failures always go to the debug log alone, whatever
-`logDecisions` says.
+**Where lines go.** The transcript gets one short line per routed main-loop
+turn or subagent, and the warm-up's result. Models show as their alias
+(`modelAlias`); tiers and routing reasons are left out. The details (setup,
+whole api replies, thrown errors with their stack, verdicts, routing reasons)
+go to the debug log alone. `logDecisions` gates all of these, except that a
+line carrying a failure, and the one-time warnings, are always written.
+
+- Main loop: `main loop: model (sonnet), effort (high)`. A part that changes
+  gets an arrow and its basis: `model (sonnet → opus @ 88%)`,
+  `effort (medium → high @ risk 82%)`. An effort removed because the model
+  takes none is `effort (dropped)`; a request with no effort has no effort
+  part. When classification failed, its short reason ends the line:
+  `…, api returned HTTP 401`.
+- Subagent: `subagent Explore: model (sonnet → haiku @ 85%)` when routed, the
+  "from" model being `e.model ?? e.parentModel`. Left alone, it shows the model
+  the engine resolved (from `next`), since an agent's definition may name one
+  the router can't see: `subagent Explore: model (haiku)`. A failure ends the
+  line as for the main loop.
+- Warm-up: `classifier warmed up in 412ms`, or `warm-up failed (…)`.
 
 **One-time lines.**
 - The setup line, at the first `prompt.submit` or `agent.spawn`, before any
@@ -169,23 +185,28 @@ Warnings and failures always go to the debug log alone, whatever
   switch check.
 - When session history can't be read: one warning, the first time.
 
-**Classifying (shared, never throws).** Given a situation and an up-only flag:
+**Classifying (shared, never throws).** Given a situation and an up-only flag,
+gives a decision, or no decision with a short failure reason for the routed
+line:
 - api: POST the situation as JSON to the endpoint with `requestHeaders(secret)`,
-  raced against `$.clock.sleep(timeoutMs)`. Timeout, non-ok status, or an
-  unreadable verdict (`readVerdict` → null) each log one line saying what
-  happened and that the request is left alone, and give no decision. Otherwise
-  the verdict's decision with the up-only flag applied.
+  raced against `$.clock.sleep(timeoutMs)`. Every reply, status and whole body,
+  goes to the debug log. A timeout, a non-ok status, or an unreadable verdict
+  (`readVerdict` → null) gives no decision and says which. Otherwise the
+  verdict's decision with the up-only flag applied.
 - built-in: `$.model.classify(prompt, TIER_ORDER)`, raced against the same
-  timeout; `builtinDecision(label)`, with the up-only flag applied.
-- any thrown error: one log line, no decision.
+  timeout; the label goes to the debug log; `builtinDecision(label)`, with the
+  up-only flag applied.
+- any thrown error: the error (with its stack) to the debug log; no decision,
+  the error's message as the reason.
 - A late answer must never be used.
 
 **`session.start`.** After the engine's own start, when the session is
 interactive, the api is configured and `warmUp` is on, send one throwaway
 classification (`source: 'main'`, prompt `warm-up`) in the background, detached
-from the dispatch through `$.clock.after`. An ok answer writes one transcript
-line with the elapsed ms; a non-ok status or a failure is a warning. A `-p` run skips it: its first prompt arrives at
-once, so a warm-up would only race it.
+from the dispatch through `$.clock.after`. Its reply goes to the debug log; an
+ok answer writes the warm-up line with the elapsed ms, and a non-ok status or a
+failure writes the failed form. A `-p` run skips it: its first prompt arrives
+at once, so a warm-up would only race it.
 
 **`prompt.submit`.**
 1. One-time setup line.
@@ -200,8 +221,8 @@ once, so a warm-up would only race it.
 6. Situation: `source: 'main'`, the prompt, and `recent` when there is one.
 7. Classify; when logging, write the decision line with the backend name
    (`api` or `builtin`) and the elapsed ms.
-8. Put the decision in the pending slot only after classification has finished,
-   then pass on.
+8. Put the decision, with its failure reason, in the pending slot only after
+   classification has finished, then pass on.
 
 **`turn.step`.**
 1. A subagent's step (`e.agentId` set): pass on untouched.
@@ -218,12 +239,11 @@ once, so a warm-up would only race it.
    the event removes the effort. This happens whatever the switches say, so the
    hook must not skip turns when the main loop can't change.
 5. Remember the turn id and the change (null when empty).
-6. When logging and the main loop can change, set the status line. With no
-   change, log the routing reason to the debug log, noting when a wanted model
-   was dropped because main-model routing is off. With a change, write the new
-   model and/or effort (or that the effort was removed because the model takes
-   none) with the reason to the transcript. Pass on the event with the change spread over
-   it.
+6. When logging and the main loop can change, set the status line. When the
+   main loop can change or there is a change, write the main-loop line (above).
+   When the main loop can change, write the routing reason to the debug log,
+   noting when a wanted model was dropped because main-model routing is off.
+   Pass on the event with the change spread over it.
 
 **`agent.spawn`.**
 1. One-time setup line.
@@ -234,10 +254,10 @@ once, so a warm-up would only race it.
    from `e.subagentType`. Classify with up-only off; log the decision line
    tagged with the subagent type.
 5. `pinned` is `respectAgentModels` and `e.model` defined. Route against
-   `{ model: e.model ?? e.parentModel, pinned }`. No model: log the reason to
-   the debug log and pass on. Otherwise write the change to the transcript and
-   pass on with `model` set to the tier's
-   value as configured (an alias stays an alias here).
+   `{ model: e.model ?? e.parentModel, pinned }`, and write the reason to the
+   debug log. Pass on, with `model` set to the tier's value as configured when
+   routing gave one (an alias stays an alias here). Then write the subagent
+   line (above) and return what `next` gave.
 
 ## Worker wording (`worker/src/classifiers/jev.ts`)
 

@@ -18,9 +18,9 @@ trap 'rm -rf "$WORK"' EXIT
 
 # name | prompt | patterns every one of which a [model-router] line must match (;-separated)
 SCENARIOS=(
-  "simple|Reply with just the word ok.|verdict via api: fast@;main loop"
-  "subagent|Use the Agent tool with subagent_type general-purpose to answer: what is 2+2? Do not answer it yourself.|verdict via api for general-purpose: fast@;spawn of general-purpose goes to haiku"
-  "pinned|Use the Agent tool with subagent_type general-purpose and model opus to answer: what is 2+2? Do not answer it yourself.|spawn of general-purpose left alone \(agent chose opus"
+  "simple|Reply with just the word ok.|verdict via api for main loop: fast@;main loop: model \("
+  "subagent|Use the Agent tool with subagent_type general-purpose to answer: what is 2+2? Do not answer it yourself.|verdict via api for subagent general-purpose: fast@;subagent general-purpose: model \(.* → haiku"
+  "pinned|Use the Agent tool with subagent_type general-purpose and model opus to answer: what is 2+2? Do not answer it yourself.|subagent general-purpose: agent chose opus;subagent general-purpose: model \(opus\)"
   "risky|Drop the users table on the production database right now.|risk (0\.[7-9][0-9]|1\.00);(deep is forced|risk-forced)"
 )
 
