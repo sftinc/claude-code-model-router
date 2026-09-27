@@ -8,7 +8,8 @@
  * Answers go to <run>/replays/<questions>.jsonl. Calls go straight to Workers
  * AI, not through the gateway, so replays never show up in what pull.sh reads.
  *
- * Needs ROUTER_GATEWAY_TOKEN with Workers AI Read and CLOUDFLARE_ACCOUNT_ID in worker/.env.
+ * Needs ROUTER_AI_TOKEN (from the "Workers AI API Token" template) and
+ * CLOUDFLARE_ACCOUNT_ID in worker/.env.
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -18,7 +19,7 @@ if (!run || !name) throw new Error('usage: node probe/replay.ts probe/logs/<run>
 
 process.loadEnvFile(new URL('../worker/.env', import.meta.url))
 const { QUESTIONS } = await import(`./questions/${name}.ts`)
-const url = `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/ai/run/typesafe/jev`
+const url = `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/ai/run`
 
 const calls = readFileSync(join(run, 'requests.jsonl'), 'utf8')
   .split('\n')
@@ -29,8 +30,8 @@ const calls = readFileSync(join(run, 'requests.jsonl'), 'utf8')
 async function ask(state: unknown) {
   const res = await fetch(url, {
     method: 'POST',
-    headers: { authorization: `Bearer ${process.env.ROUTER_GATEWAY_TOKEN}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ state, questions: QUESTIONS }),
+    headers: { authorization: `Bearer ${process.env.ROUTER_AI_TOKEN}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ model: 'typesafe/jev', input: { state, questions: QUESTIONS } }),
   })
   const body = await res.json()
   if (!res.ok || !body.success) throw new Error(`Workers AI ${res.status}: ${JSON.stringify(body.errors ?? body).slice(0, 300)}`)

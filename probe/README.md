@@ -52,7 +52,9 @@ node probe/score.ts probe/logs/<run> <name>
 
 `probe/questions/current.ts` re-exports the questions the Worker asks today, from `worker/src/classifiers/jev-questions.ts`. Replay it first: comparing it with the logged answers shows how much Jev's answers vary from run to run, so you know how big a change has to be before it counts.
 
-The token also needs **Workers AI Read**.
+Log each round in [`RESULTS.md`](RESULTS.md): the starting questions and numbers, what shipped and its numbers, and one line for each variant dropped. Commit the dropped variants' files once, then delete them after the round ships, so their text stays in git history. The repo is public, so describe misses in general terms and never quote prompts or transcripts from the logs.
+
+Replay needs its own token, since running a model takes both Workers AI Read and Edit: create one from the **Workers AI API Token** template and add it to `worker/.env` as `ROUTER_AI_TOKEN`.
 
 ## Reading the misses
 
