@@ -35,9 +35,9 @@ The questions in `worker/src/classifiers/jev-questions.ts` as of `f003aa2`.
 - Taking the likeliest effort level turns close splits into xhigh: 40 picks against 2 in the labels.
 - Jev's tier confidence is low (median 0.44), so the plugin's 0.6 bar for moving down blocks most moves. That, more than Jev's picks, keeps turns on the big model.
 
-### Chosen: v2a
+### Shipped: v2a, with a new routing rule
 
-**Status: chosen, not live.** The Worker still asks the starting-point questions. v2a ships together with the new routing rule below, since it does worse under today's rule; this entry changes to *Shipped* with the commit that does it.
+**Status: live since 2026-09-27, Worker version `4487dd8e`.** The wording below is in `worker/src/classifiers/jev-questions.ts`. The Worker now picks the tier from Jev's probabilities (fast at P(fast) ≥ 0.7, deep at P(deep) ≥ 0.4, balanced otherwise) and effort from its weighted score (`floor(score + 0.25)`), in `tierFrom` and `effortFrom` in `worker/src/classifiers/jev.ts`. The plugin's `minUpgradeConfidence` and `minDowngradeConfidence` defaults went from 0.3 and 0.6 to 0, so it follows the Worker.
 
 The tier ladder and `risky` stay as they were. Both the tier and effort instructions gain this context:
 
@@ -59,17 +59,20 @@ The tier instructions drop "and the cost of getting it wrong". The effort instru
 
 | Questions | Rule | Tier o/r/u | Haiku miss | Effort o/r/u |
 |---|---|---|---|---|
-| starting point | today (0.6 to move down, likeliest effort) | 154/41/5 | 4 | 128/52/2 |
+| starting point | old rule (0.6 to move down, likeliest effort) | 154/41/5 | 4 | 128/52/2 |
 | starting point | Haiku at P(fast) ≥ 0.7, Opus at P(deep) ≥ 0.4, effort from score | 76/110/14 | 8 | 56/99/18 |
-| v2a | today | 163/31/6 | 6 | 115/65/2 |
+| v2a | old rule | 163/31/6 | 6 | 115/65/2 |
 | v2a | follow Jev, effort from score | 40/126/34 | 29 | 30/67/22 |
 | v2a | Haiku at P(fast) ≥ 0.7, Opus at P(deep) ≥ 0.4, effort from score | 76/110/14 | 9 | 45/102/29 |
 
-v2a is less confident than the starting point, so under today's routing rule it does worse. It only pays off shipped together with a new rule.
+v2a is less confident than the starting point, so under the old routing rule it did worse. That is why it shipped together with the new rule: the last row is what runs now.
 
 **Still open.** No deep call is caught, short approvals still read as fast, and about 29 balanced calls are still called fast.
 
 ### Tried and dropped
+
+Their question files are in git at `a112cea`, under `probe/questions/`.
+
 
 - **v1:** rewrote the tier ladder as kinds of work, with examples. Effort improved, but tier fell to 103 right: the examples pulled balanced work into both fast and deep, and background notices jumped to deep. The notice rule in v2a came from this.
 - **v2b:** v1 plus the notice rule. Tier fell further, to 101 right, with 48 non-fast calls sent to fast. v1's ladder was the problem, not the notices.

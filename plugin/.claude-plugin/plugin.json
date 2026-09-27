@@ -60,14 +60,14 @@
     "minUpgradeConfidence": {
       "type": "number",
       "title": "Upgrade confidence",
-      "description": "Lowest classifier confidence (0 to 1) needed to move to a more capable model or higher effort; an answer with no confidence always may",
-      "default": 0.3
+      "description": "Lowest classifier confidence (0 to 1) needed to move to a more capable model or higher effort; an answer with no confidence always may. The API already applies its own thresholds, so 0 follows it",
+      "default": 0
     },
     "minDowngradeConfidence": {
       "type": "number",
       "title": "Downgrade confidence",
-      "description": "Lowest classifier confidence (0 to 1) needed to move to a cheaper model or lower effort; an answer with no confidence never may",
-      "default": 0.6
+      "description": "Lowest classifier confidence (0 to 1) needed to move to a cheaper model or lower effort; an answer with no confidence never may. The API already applies its own thresholds, so 0 follows it",
+      "default": 0
     },
     "riskyThreshold": {
       "type": "number",

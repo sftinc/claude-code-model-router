@@ -57,7 +57,7 @@ Options live under `pluginConfigs` in `~/.claude/settings.json`. The key is `mod
 | `provider` | `auto` | `auto`, `api`, `builtin` |
 | `apiUrl` / `apiSecret` | empty | Both needed for the API |
 | `fastModel` / `balancedModel` / `deepModel` | `haiku` / `sonnet` / `opus` | Alias or full id |
-| `minUpgradeConfidence` / `minDowngradeConfidence` | 0.3 / 0.6 | Minimum confidence for a move to a costlier / cheaper setting |
+| `minUpgradeConfidence` / `minDowngradeConfidence` | 0 / 0 | Minimum confidence for a move to a costlier / cheaper setting. The API applies its own thresholds, so 0 follows it; the built-in classifier gives no confidence, so it still never moves down |
 | `riskyThreshold` | 0.7 | Above it: deep tier, at least high effort |
 | `contextMessages` / `contextChars` | 30 / 60000 | Recent context sent with main-loop prompts |
 | `routeSubagentModel` | true | |

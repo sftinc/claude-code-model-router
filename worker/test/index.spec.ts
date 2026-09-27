@@ -8,7 +8,7 @@ const JEV_OK = {
   model: 'jev-1.13.0',
   answers: {
     tier: { choice: 'balanced', probabilities: { fast: 0.1, balanced: 0.8, deep: 0.1 }, confidence: 0.7 },
-    effort: { probabilities: { '0': 0.05, '1': 0.2, '2': 0.6, '3': 0.15 }, confidence: 0.47 },
+    effort: { score: 1.9, probabilities: { '0': 0.05, '1': 0.2, '2': 0.6, '3': 0.15 }, confidence: 0.47 },
     risky: { noul: 0.04 },
   },
   usage: {},
@@ -96,7 +96,7 @@ describe('worker', () => {
     expect(res.headers.get('x-aig-log-id')).toBe('log-123')
     expect(await res.json()).toEqual({
       classifier: 'typesafe/jev@jev-1.13.0',
-      tier: { value: 'balanced', confidence: 0.7 },
+      tier: { value: 'balanced', confidence: expect.closeTo(0.7, 5) },
       effort: { level: 2, confidence: 0.47 },
       risky: { p: 0.04 },
     })

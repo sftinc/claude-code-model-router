@@ -81,7 +81,7 @@ matrix('Effort, most likely level', ['0', '1', '2', '3'], (row) => String(row.la
 // ---------------------------------------------------------------------------
 // Routing rules: add a line to RULES to try another one
 
-/** What the Worker sends today: the most likely level. */
+/** What the Worker sent before round 1: the most likely level. */
 const likeliestEffort = (row: Row) => argmaxHigh(row.jevEffortP)
 
 /** Jev's weighted effort score, rounded with a slight lean down. */
@@ -105,18 +105,21 @@ function viaPolicy(effort: (row: Row) => number, bars: { up: number; down: numbe
   }
 }
 
-/** Haiku only when P(fast) clears `fast`, Opus only when P(deep) clears `deep`, else Sonnet; effort always follows. */
+/**
+ * Haiku only when P(fast) clears `fast`, Opus only when P(deep) clears `deep`, else Sonnet; effort always follows.
+ * With 0.7 and 0.4 this is what the Worker's tierFrom and effortFrom send today.
+ */
 const byProbability = (fast: number, deep: number, effort: (row: Row) => number) => (row: Row): Pick => ({
   model: MODEL_OF[row.jevTierP.fast >= fast ? 'fast' : (row.jevTierP.deep ?? 0) >= deep ? 'deep' : 'balanced'],
   effort: EFFORTS[effort(row)]!,
 })
 
 const RULES: [string, (row: Row, start: Pick) => Pick][] = [
-  ['today: bars 0.3 up / 0.6 down, likeliest effort', viaPolicy(likeliestEffort, { up: 0.3, down: 0.6 })],
+  ['before round 1: bars 0.3/0.6, likeliest effort', viaPolicy(likeliestEffort, { up: 0.3, down: 0.6 })],
   ['bars 0.3 up / 0.6 down, score effort', viaPolicy(scoreEffort, { up: 0.3, down: 0.6 })],
   ['follow Jev (no bars), score effort', viaPolicy(scoreEffort, { up: 0, down: 0 })],
   ['haiku P(fast)>=0.6, opus P(deep)>=0.4, score effort', byProbability(0.6, 0.4, scoreEffort)],
-  ['haiku P(fast)>=0.7, opus P(deep)>=0.4, score effort', byProbability(0.7, 0.4, scoreEffort)],
+  ['live: haiku P(fast)>=0.7, opus P(deep)>=0.4, score', byProbability(0.7, 0.4, scoreEffort)],
 ]
 
 /** A turn starts on the session's model and effort; the rule decides what it moves to. */

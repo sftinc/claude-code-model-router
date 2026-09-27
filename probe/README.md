@@ -56,6 +56,38 @@ Log each round in [`RESULTS.md`](RESULTS.md): the starting questions and numbers
 
 Replay needs its own token, since running a model takes both Workers AI Read and Edit: create one from the **Workers AI API Token** template and add it to `worker/.env` as `ROUTER_AI_TOKEN`.
 
+## 5. Ship a round
+
+Once a variant is chosen:
+
+1. **Questions.** Copy its wording into `worker/src/classifiers/jev-questions.ts`, and check the live questions now match what you tested:
+
+   ```bash
+   node -e "Promise.all([import('./worker/src/classifiers/jev-questions.ts'), import('./probe/questions/<name>.ts')]).then(([a, b]) => console.log(JSON.stringify(a.QUESTIONS) === JSON.stringify(b.QUESTIONS) ? 'identical' : 'DIFFERENT'))"
+   ```
+
+2. **Routing rule, if it changed.** The Worker turns Jev's answer into a tier and effort in `tierFrom` and `effortFrom` in `worker/src/classifiers/jev.ts`. Change those, then update the `live` line in `RULES` in `score.ts` to match. If the plugin should gate differently, its defaults are in `OPTION_DEFAULTS` in `plugin/hooks/model-router.ts`, `plugin/.claude-plugin/plugin.json` and the options table in the root `README.md`; change all three together.
+3. **Tests.** Update the Worker tests in `worker/test/jev.spec.ts` for any rule change, then run:
+
+   ```bash
+   cd worker && npm test && npm run typecheck && cd ..
+   worker/node_modules/.bin/tsc -p plugin/tsconfig.json
+   claude plugin test plugin
+   claude plugin validate plugin
+   ```
+
+4. **Results.** In `RESULTS.md`, turn the round's *Chosen* entry into *Shipped*, with the date and what changed where.
+5. **Cleanup.** Delete the round's variant files from `probe/questions/`. They're in the commit that logged the round, so name that commit under *Tried and dropped*. Keep `current.ts`.
+6. **Deploy.** Deploy the Worker first, then push: the plugin updates follow the commit on `main`, so pushing is what ships the plugin side.
+
+   ```bash
+   cd worker && npm run deploy
+   set -a && . ./.env && set +a && scripts/live-check.sh && cd ..
+   git push
+   ```
+
+7. **Next round.** After a few days of real use, pull a fresh run and score it. Those numbers are the next round's starting point.
+
 ## Reading the misses
 
 ```bash

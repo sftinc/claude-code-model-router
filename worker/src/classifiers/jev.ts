@@ -7,7 +7,7 @@
  * index as a string ("0".."3"). Anything else throws, which the Worker turns
  * into a 502 and the mod into "request unchanged".
  */
-import { argmaxHigh, confidenceOf } from '../confidence'
+import { confidenceOf } from '../confidence'
 import type { Classifier, EffortLevel, Tier } from '../types'
 import { QUESTIONS } from './jev-questions'
 
@@ -18,7 +18,7 @@ type Answer = { probabilities: Record<string, number>; confidence: number | null
 export type Parsed = {
   model: string
   tier: Answer & { choice: Tier }
-  effort: Answer
+  effort: Answer & { score: number }
   risky: number
 }
 
@@ -56,7 +56,9 @@ export function parseAnswers(response: unknown): Parsed {
   if (
     !isRecord(effort) ||
     !isProbabilities(effort.probabilities) ||
-    !Object.keys(effort.probabilities).every((key) => /^[0-3]$/.test(key))
+    !Object.keys(effort.probabilities).every((key) => /^[0-3]$/.test(key)) ||
+    typeof effort.score !== 'number' ||
+    !(effort.score >= 0 && effort.score <= 3)
   ) {
     throw new Error('jev: bad effort answer')
   }
@@ -65,9 +67,29 @@ export function parseAnswers(response: unknown): Parsed {
   return {
     model: result.model,
     tier: { choice: tier.choice as Tier, probabilities: tier.probabilities, confidence: confidenceField(tier.confidence) },
-    effort: { probabilities: effort.probabilities, confidence: confidenceField(effort.confidence) },
+    effort: { probabilities: effort.probabilities, confidence: confidenceField(effort.confidence), score: effort.score },
     risky: risky.noul,
   }
+}
+
+/**
+ * The tier to send, read from Jev's probabilities rather than its pick. Fast
+ * needs a clear lead, because fast work that isn't sends real work to the
+ * smallest model; deep needs less, because Jev seldom gives it much weight at
+ * all. Anything in between is balanced. Tuned in probe/RESULTS.md, round 1.
+ */
+export function tierFrom(probabilities: Record<string, number>): Tier {
+  if ((probabilities.fast ?? 0) >= 0.7) return 'fast'
+  if ((probabilities.deep ?? 0) >= 0.4) return 'deep'
+  return 'balanced'
+}
+
+/**
+ * Jev's weighted effort score, rounded with a slight lean down. The likeliest
+ * level turned close splits (say 38% xhigh, 36% medium) into xhigh.
+ */
+export function effortFrom(score: number): EffortLevel {
+  return Math.min(3, Math.max(0, Math.floor(score + 0.25))) as EffortLevel
 }
 
 export const jev: Classifier = {
@@ -75,14 +97,13 @@ export const jev: Classifier = {
   async classify(situation, env, gateway) {
     const result = await env.AI.run('typesafe/jev', { state: situation, questions: QUESTIONS }, { gateway })
     const parsed = parseAnswers(result)
+    const tier = tierFrom(parsed.tier.probabilities)
     return {
       classifier: `typesafe/jev@${parsed.model}`,
-      tier: {
-        value: parsed.tier.choice,
-        confidence: parsed.tier.confidence ?? confidenceOf(parsed.tier.probabilities, TIERS.length),
-      },
+      // Confidence in the tier sent, which may not be the one Jev picked.
+      tier: { value: tier, confidence: confidenceOf({ [tier]: parsed.tier.probabilities[tier] ?? 0 }, TIERS.length) },
       effort: {
-        level: argmaxHigh(parsed.effort.probabilities) as EffortLevel,
+        level: effortFrom(parsed.effort.score),
         confidence: parsed.effort.confidence ?? confidenceOf(parsed.effort.probabilities, QUESTIONS.effort.criteria.length),
       },
       risky: { p: parsed.risky },

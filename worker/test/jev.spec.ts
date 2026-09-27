@@ -38,22 +38,40 @@ describe('jev adapter', () => {
     const verdict = await jev.classify({ source: 'main', prompt: 'go' }, envAnswering(answer()), GATEWAY)
     expect(verdict).toEqual({
       classifier: 'typesafe/jev@jev-1.13.0',
-      tier: { value: 'balanced', confidence: 0.7 },
+      tier: { value: 'balanced', confidence: expect.closeTo(0.7, 5) },
       effort: { level: 2, confidence: 0.47 },
       risky: { p: 0.04 },
     })
   })
 
-  test('effort is the most probable level, a tie going higher', async () => {
-    const tie = answer({ effort: { type: 'score', score: 1, probabilities: { '0': 0.5, '2': 0.5 }, confidence: 0 } })
-    const verdict = await jev.classify({ source: 'main', prompt: 'go' }, envAnswering(tie), GATEWAY)
-    expect(verdict.effort.level).toBe(2)
+  const classifyWith = (overrides: Record<string, unknown>) =>
+    jev.classify({ source: 'main', prompt: 'go' }, envAnswering(answer(overrides)), GATEWAY)
+  const tierAnswer = (choice: string, probabilities: Record<string, number>) => ({ tier: { type: 'choice', choice, probabilities } })
+  const effortAnswer = (score: number) => ({ effort: { type: 'score', score, probabilities: { '0': 0.25, '1': 0.25, '2': 0.25, '3': 0.25 } } })
+
+  test('tier is fast only once P(fast) reaches 0.7, whatever Jev picked', async () => {
+    expect((await classifyWith(tierAnswer('fast', { fast: 0.69, balanced: 0.21, deep: 0.1 }))).tier.value).toBe('balanced')
+    expect((await classifyWith(tierAnswer('fast', { fast: 0.7, balanced: 0.2, deep: 0.1 }))).tier.value).toBe('fast')
   })
 
-  test('a missing confidence is computed from the probabilities over every option asked', async () => {
-    const bare = answer({ tier: { type: 'choice', choice: 'fast', probabilities: { fast: 0.61, balanced: 0.2, deep: 0.19 } } })
-    const verdict = await jev.classify({ source: 'main', prompt: 'go' }, envAnswering(bare), GATEWAY)
-    expect(verdict.tier.confidence).toBeCloseTo(0.415, 3)
+  test('tier is deep once P(deep) reaches 0.4, even when Jev picked balanced', async () => {
+    expect((await classifyWith(tierAnswer('balanced', { fast: 0.1, balanced: 0.5, deep: 0.4 }))).tier.value).toBe('deep')
+    expect((await classifyWith(tierAnswer('deep', { fast: 0.25, balanced: 0.36, deep: 0.39 }))).tier.value).toBe('balanced')
+  })
+
+  test("tier confidence is for the tier sent, from its probability over the three asked", async () => {
+    const sent = await classifyWith(tierAnswer('fast', { fast: 0.75, balanced: 0.15, deep: 0.1 }))
+    expect(sent.tier.confidence).toBeCloseTo(0.625, 3)
+    const fellBack = await classifyWith(tierAnswer('fast', { fast: 0.6, balanced: 0.3, deep: 0.1 }))
+    expect(fellBack.tier).toEqual({ value: 'balanced', confidence: 0 })
+  })
+
+  test("effort is Jev's score rounded with a lean down, not the likeliest level", async () => {
+    expect((await classifyWith(effortAnswer(0.74))).effort.level).toBe(0)
+    expect((await classifyWith(effortAnswer(0.75))).effort.level).toBe(1)
+    expect((await classifyWith(effortAnswer(2.74))).effort.level).toBe(2)
+    expect((await classifyWith(effortAnswer(2.75))).effort.level).toBe(3)
+    expect((await classifyWith(effortAnswer(3))).effort.level).toBe(3)
   })
 
   test('the risky question is asked about the act, not the subject', () => {
@@ -87,6 +105,12 @@ describe('parseAnswers', () => {
     expect(() => parseAnswers(answer({ effort: { probabilities: { low: 1 } } }))).toThrow()
     expect(() => parseAnswers(answer({ effort: { probabilities: { '4': 1 } } }))).toThrow()
     expect(() => parseAnswers(answer({ effort: { probabilities: {} } }))).toThrow()
+  })
+
+  test('refuses an effort score that is missing or outside 0..3', () => {
+    const probabilities = { '1': 1 }
+    expect(() => parseAnswers(answer({ effort: { probabilities } }))).toThrow('effort')
+    expect(() => parseAnswers(answer({ effort: { score: 3.2, probabilities } }))).toThrow('effort')
   })
 
   test('refuses a risky value outside 0..1', () => {

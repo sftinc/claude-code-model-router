@@ -66,8 +66,9 @@ const OPTION_DEFAULTS: Readonly<Options> = {
   fastModel: DEFAULT_TIERS.fast,
   balancedModel: DEFAULT_TIERS.balanced,
   deepModel: DEFAULT_TIERS.deep,
-  minUpgradeConfidence: 0.3,
-  minDowngradeConfidence: 0.6,
+  // The API applies its own thresholds before it answers, so by default a move follows it.
+  minUpgradeConfidence: 0,
+  minDowngradeConfidence: 0,
   riskyThreshold: 0.7,
   contextMessages: 30,
   contextChars: 60000,
