@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from 'vitest'
-import { jev, parseAnswers, QUESTIONS } from '../src/classifiers/jev'
+import { jev, parseAnswers } from '../src/classifiers/jev'
+import { QUESTIONS } from '../src/classifiers/jev-questions'
 import type { Env, GatewayOptions } from '../src/types'
 
 const GATEWAY: GatewayOptions = { id: 'model-router', skipCache: true, collectLog: true, metadata: {} }

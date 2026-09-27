@@ -2,10 +2,12 @@
  * Scores Jev's answers against the labels for one probe run, then replays
  * candidate routing rules over the same calls to see what each would send.
  *
- *   node probe/score.ts probe/logs/<run>
+ *   node probe/score.ts probe/logs/<run> [replay]
  *
  * Reads requests.jsonl and labels/*.jsonl, and writes compared.jsonl: one row
- * per labeled call with Jev's answer and the label side by side.
+ * per labeled call with Jev's answer and the label side by side. With a replay
+ * name, Jev's answers come from replays/<replay>.jsonl instead of the logs,
+ * and the rows go to compared-<replay>.jsonl.
  */
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -17,8 +19,8 @@ const TIERS: Tier[] = ['fast', 'balanced', 'deep']
 const MODEL_OF: Record<Tier, string> = { fast: 'haiku', balanced: 'sonnet', deep: 'opus' }
 const EFFORTS = ['low', 'medium', 'high', 'xhigh']
 
-const run = process.argv[2]
-if (!run) throw new Error('usage: node probe/score.ts probe/logs/<run>')
+const [run, replay] = process.argv.slice(2)
+if (!run) throw new Error('usage: node probe/score.ts probe/logs/<run> [replay]')
 
 const jsonLines = (file: string) =>
   readFileSync(file, 'utf8')
@@ -31,10 +33,14 @@ for (const file of readdirSync(join(run, 'labels'))) {
   for (const label of jsonLines(join(run, 'labels', file))) labels.set(label.id, label)
 }
 
+const replayed = new Map<string, any>()
+if (replay) for (const answer of jsonLines(join(run, 'replays', `${replay}.jsonl`))) replayed.set(answer.id, answer.response)
+const responseOf = (call: any) => (replay ? replayed.get(call.id) : call.response)
+
 const rows = jsonLines(join(run, 'requests.jsonl'))
-  .filter((call) => labels.has(call.id))
+  .filter((call) => labels.has(call.id) && responseOf(call))
   .map((call) => {
-    const answers = call.response.result.answers
+    const answers = responseOf(call).result.answers
     const label = labels.get(call.id)!
     return {
       id: call.id as string,
@@ -51,7 +57,7 @@ const rows = jsonLines(join(run, 'requests.jsonl'))
       reason: label.reason,
     }
   })
-writeFileSync(join(run, 'compared.jsonl'), rows.map((row) => JSON.stringify(row)).join('\n') + '\n')
+writeFileSync(join(run, replay ? `compared-${replay}.jsonl` : 'compared.jsonl'), rows.map((row) => JSON.stringify(row)).join('\n') + '\n')
 
 type Row = (typeof rows)[number]
 type Pick = { model: string; effort: string }
@@ -68,7 +74,7 @@ function matrix(title: string, keys: string[], label: (row: Row) => string, jev:
   }
 }
 
-console.log(`${rows.length} labeled calls`)
+console.log(`${rows.length} labeled calls, Jev's answers from ${replay ? `replay ${replay}` : 'the logs'}`)
 matrix('Tier', TIERS, (row) => row.labelTier, (row) => row.jevTier)
 matrix('Effort, most likely level', ['0', '1', '2', '3'], (row) => String(row.labelEffort), (row) => String(argmaxHigh(row.jevEffortP)))
 

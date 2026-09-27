@@ -1,5 +1,6 @@
 /**
- * The Jev adapter: the only file that knows Jev's questions and answer shapes.
+ * The Jev adapter: the only file that knows Jev's answer shapes. The questions
+ * are in jev-questions.ts.
  *
  * Per Cloudflare's model page, `env.AI.run('typesafe/jev', …)` returns the bare
  * `{ model, answers, usage }`, and a score's probabilities are keyed by level
@@ -8,48 +9,9 @@
  */
 import { argmaxHigh, confidenceOf } from '../confidence'
 import type { Classifier, EffortLevel, Tier } from '../types'
+import { QUESTIONS } from './jev-questions'
 
 const TIERS: readonly Tier[] = ['fast', 'balanced', 'deep']
-
-/**
- * A ladder of demand. Each rung says how much judgment the work calls
- * for and what an error would cost; no rung mentions a model.
- */
-const TIER_LADDER: Record<Tier, string> = {
-  fast: 'Hardly any judgment is called for. The right result is plain once the request is read, and a slip would show up at once and take moments to put right.',
-  balanced:
-    'Ordinary engineering judgment is called for inside settled bounds. The way forward is known, and a slip would most likely be caught by review or tests before it did harm.',
-  deep: 'Sustained judgment is called for because the right path is not obvious, and a slip could be expensive, slow to come to light, or hard to trace back to its cause.',
-}
-
-/** Situations, not degrees. The index is the level. */
-const EFFORT_CRITERIA = [
-  'The answer or edit is obvious from context.',
-  'A routine change with a clear approach.',
-  'Several interacting parts, or an unclear cause.',
-  'A design decision, subtle bug, or high-stakes change where mistakes are costly.',
-] as const
-
-/** Questions name situation fields by path. */
-export const QUESTIONS = {
-  tier: {
-    type: 'choice',
-    instructions:
-      'Which rung best matches the judgment `prompt` demands and the cost of getting it wrong? Read it alongside `recent` if that is given, and, for a subagent, alongside its `description` and `agentType`.',
-    criteria: TIER_LADDER,
-  },
-  effort: {
-    type: 'score',
-    instructions: 'Which of these situations best describes the work `prompt` asks for, reading it alongside `recent` if that is given?',
-    criteria: EFFORT_CRITERIA,
-  },
-  risky: {
-    type: 'noul',
-    // Score the consequence of doing the work, never the topic the work concerns.
-    instructions:
-      'Once `prompt` has been carried out, taking `recent`, `description` and `agentType` into account where given, will the carrying out itself have left harm behind that nobody can reverse? Score the deed and its consequences, not its subject: a task on a sensitive topic whose performance harms nothing is a no.',
-  },
-} as const
 
 type Answer = { probabilities: Record<string, number>; confidence: number | null }
 
@@ -121,7 +83,7 @@ export const jev: Classifier = {
       },
       effort: {
         level: argmaxHigh(parsed.effort.probabilities) as EffortLevel,
-        confidence: parsed.effort.confidence ?? confidenceOf(parsed.effort.probabilities, EFFORT_CRITERIA.length),
+        confidence: parsed.effort.confidence ?? confidenceOf(parsed.effort.probabilities, QUESTIONS.effort.criteria.length),
       },
       risky: { p: parsed.risky },
     }
