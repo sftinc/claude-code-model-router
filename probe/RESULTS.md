@@ -2,15 +2,17 @@
 
 What we changed in Jev's questions, one entry per round, newest at the bottom. A round runs from one shipped set of questions to the next: where it started, what shipped, and one line for each variant tried and dropped. The dropped variants' full text stays in git history. No prompts or transcripts go in here, only the questions and the numbers.
 
+**Names.** Shipped questions are numbered: v0 is the original set, v1 the first change shipped, and so on. Drafts inside a round are named after the version they aim at (v2-a, v2-b, …); the one that ships becomes the plain number, and the rest go under *Tried and dropped*.
+
 **How to read the numbers.** "Right" means Jev's answer matched the blind label for that call. Effort uses Jev's likeliest level. Routing rows replay each answer through a rule with every turn starting on Opus at high effort: `o/r/u` counts turns that ended over, right, or under the label, "Haiku miss" counts non-fast work sent to Haiku, and effort leaves out Haiku turns.
 
-## Round 1: judge the work, not how it sounds
+## Round 1: v0 → v1, judge the work, not how it sounds
 
 **Run.** `2026-09-27`: 200 calls from one developer's Claude Code sessions, September 24 to 27, 2026 (191 main-agent turns, 9 subagents), all from the same Worker version. Claude subagents labeled them blind from [`label-prompt.md`](label-prompt.md): 90 fast, 104 balanced, 6 deep.
 
 **Noise.** Replaying the live questions reproduced 195 of 200 tiers and 192 of 200 effort levels. A change has to move more than about 5 tier picks to count.
 
-### Starting point
+### Starting point: v0
 
 The questions in `worker/src/classifiers/jev-questions.ts` as of `f003aa2`.
 
@@ -35,7 +37,7 @@ The questions in `worker/src/classifiers/jev-questions.ts` as of `f003aa2`.
 - Taking the likeliest effort level turns close splits into xhigh: 40 picks against 2 in the labels.
 - Jev's tier confidence is low (median 0.44), so the plugin's 0.6 bar for moving down blocks most moves. That, more than Jev's picks, keeps turns on the big model.
 
-### Shipped: v2a, with a new routing rule
+### Shipped: v1 (draft v1-b), with a new routing rule
 
 **Status: live since 2026-09-27, Worker version `4487dd8e`.** The wording below is in `worker/src/classifiers/jev-questions.ts`. The Worker now picks the tier from Jev's probabilities (fast at P(fast) ≥ 0.7, deep at P(deep) ≥ 0.4, balanced otherwise) and effort from its weighted score (`floor(score + 0.25)`), in `tierFrom` and `effortFrom` in `worker/src/classifiers/jev.ts`. The plugin's `minUpgradeConfidence` and `minDowngradeConfidence` defaults went from 0.3 and 0.6 to 0, so it follows the Worker.
 
@@ -54,25 +56,25 @@ The tier instructions drop "and the cost of getting it wrong". The effort instru
 
 | Questions | Tier right | Fast / balanced / deep right | Non-fast called fast | Effort right | Picked xhigh |
 |---|---|---|---|---|---|
-| starting point | 114 | 44 / 70 / 0 | 28 | 88 | 40 |
-| v2a | 126 | 52 / 74 / 0 | 29 | 108 | 11 |
+| v0 | 114 | 44 / 70 / 0 | 28 | 88 | 40 |
+| v1 | 126 | 52 / 74 / 0 | 29 | 108 | 11 |
 
 | Questions | Rule | Tier o/r/u | Haiku miss | Effort o/r/u |
 |---|---|---|---|---|
-| starting point | old rule (0.6 to move down, likeliest effort) | 154/41/5 | 4 | 128/52/2 |
-| starting point | Haiku at P(fast) ≥ 0.7, Opus at P(deep) ≥ 0.4, effort from score | 76/110/14 | 8 | 56/99/18 |
-| v2a | old rule | 163/31/6 | 6 | 115/65/2 |
-| v2a | follow Jev, effort from score | 40/126/34 | 29 | 30/67/22 |
-| v2a | Haiku at P(fast) ≥ 0.7, Opus at P(deep) ≥ 0.4, effort from score | 76/110/14 | 9 | 45/102/29 |
+| v0 | old rule (0.6 to move down, likeliest effort) | 154/41/5 | 4 | 128/52/2 |
+| v0 | Haiku at P(fast) ≥ 0.7, Opus at P(deep) ≥ 0.4, effort from score | 76/110/14 | 8 | 56/99/18 |
+| v1 | old rule | 163/31/6 | 6 | 115/65/2 |
+| v1 | follow Jev, effort from score | 40/126/34 | 29 | 30/67/22 |
+| v1 | Haiku at P(fast) ≥ 0.7, Opus at P(deep) ≥ 0.4, effort from score | 76/110/14 | 9 | 45/102/29 |
 
-v2a is less confident than the starting point, so under the old routing rule it did worse. That is why it shipped together with the new rule: the last row is what runs now.
+v1 is less confident than v0, so under the old routing rule it did worse. That is why it shipped together with the new rule: the last row is what runs now.
 
 **Still open.** No deep call is caught, short approvals still read as fast, and about 29 balanced calls are still called fast.
 
 ### Tried and dropped
 
-Their question files are in git at `a112cea`, under `probe/questions/`.
+Their question files are in git at `a112cea`, under `probe/questions/`, with their names from then: `v1.ts` is v1-a, `v2a.ts` is v1-b (shipped) and `v2b.ts` is v1-c.
 
 
-- **v1:** rewrote the tier ladder as kinds of work, with examples. Effort improved, but tier fell to 103 right: the examples pulled balanced work into both fast and deep, and background notices jumped to deep. The notice rule in v2a came from this.
-- **v2b:** v1 plus the notice rule. Tier fell further, to 101 right, with 48 non-fast calls sent to fast. v1's ladder was the problem, not the notices.
+- **v1-a:** rewrote the tier ladder as kinds of work, with examples. Effort improved, but tier fell to 103 right: the examples pulled balanced work into both fast and deep, and background notices jumped to deep. The notice rule in v1-b came from this.
+- **v1-c:** v1-a plus the notice rule. Tier fell further, to 101 right, with 48 non-fast calls sent to fast. v1-a's ladder was the problem, not the notices.

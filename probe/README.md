@@ -43,9 +43,9 @@ It also writes `compared.jsonl`, one row per call with Jev's answer and the labe
 ## 4. Replay with other questions
 
 ```bash
-cp probe/questions/current.ts probe/questions/<name>.ts   # then edit QUESTIONS in it
-node probe/replay.ts probe/logs/<run> <name>
-node probe/score.ts probe/logs/<run> <name>
+cp probe/questions/current.ts probe/questions/v2-a.ts   # a draft of the next version; then edit QUESTIONS in it
+node probe/replay.ts probe/logs/<run> v2-a
+node probe/score.ts probe/logs/<run> v2-a
 ```
 
 `replay.ts` sends every call's situation back to Jev with that file's `QUESTIONS`, writing `replays/<name>.jsonl`. `score.ts` then scores those answers against the same labels, and writes `compared-<name>.jsonl`. Replays call Workers AI directly, not through the gateway, so they never show up in a later pull. Each full replay costs about $0.02.

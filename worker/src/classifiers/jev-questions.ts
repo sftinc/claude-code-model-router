@@ -1,5 +1,6 @@
 /**
- * The questions the Worker asks Jev. They sit apart from the adapter, with no
+ * The questions the Worker asks Jev: v1, shipped in round 1 of probe/RESULTS.md.
+ * They sit apart from the adapter, with no
  * runtime imports, so probe/replay.ts can load them in plain Node and try
  * variants against logged situations.
  */
