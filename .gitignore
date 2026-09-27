@@ -15,6 +15,9 @@ worker/worker-configuration.d.ts
 # Written by `/plugin-types plugin`; Anthropic's declarations, not ours to publish
 plugin/.claude/types/
 
+# Probe runs: pulled AI Gateway logs, which hold prompts and transcript snippets
+/probe/logs/
+
 # Local agent files
 .superpowers/
 /CLAUDE.md
