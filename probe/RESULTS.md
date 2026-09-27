@@ -35,7 +35,9 @@ The questions in `worker/src/classifiers/jev-questions.ts` as of `f003aa2`.
 - Taking the likeliest effort level turns close splits into xhigh: 40 picks against 2 in the labels.
 - Jev's tier confidence is low (median 0.44), so the plugin's 0.6 bar for moving down blocks most moves. That, more than Jev's picks, keeps turns on the big model.
 
-### Chosen: v2a (not yet shipped)
+### Chosen: v2a
+
+**Status: chosen, not live.** The Worker still asks the starting-point questions. v2a ships together with the new routing rule below, since it does worse under today's rule; this entry changes to *Shipped* with the commit that does it.
 
 The tier ladder and `risky` stay as they were. Both the tier and effort instructions gain this context:
 
