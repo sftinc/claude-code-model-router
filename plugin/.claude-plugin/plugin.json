@@ -126,7 +126,7 @@
     "logDecisions": {
       "type": "boolean",
       "title": "Log decisions",
-      "description": "Log the setup, each classification and each routing choice, and show the status line; warnings and failures are logged either way",
+      "description": "Log the setup, each classification and each routing choice; warnings and failures are logged either way",
       "default": true
     }
   }

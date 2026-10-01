@@ -28,7 +28,6 @@ export function worldOf(
     world.lines.push(e.text)
     return { value: undefined }
   })
-  on('ui.status', () => ({ value: undefined }))
   on('session.messages', () => {
     if (answers.history === 'fail') throw new Error('history unavailable')
     return { value: [] }

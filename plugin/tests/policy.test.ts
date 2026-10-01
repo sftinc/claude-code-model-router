@@ -7,7 +7,6 @@ import {
   describeDecision,
   describeMove,
   describeSetup,
-  describeStatus,
   effortName,
   effortRank,
   modelAlias,
@@ -392,18 +391,5 @@ describe('log and status text', () => {
 
   test('a built-in verdict shows only its tier, with a marker for the missing confidence', () => {
     expect(describeDecision(decide({ classifier: null, confidence: null }), null)).toBe('balanced@?')
-  })
-
-  test('the status line names the change, with the verdict when there is one', () => {
-    const d = decide({ tier: 'deep', confidence: 0.9 })
-    expect(describeStatus(null, { effort: undefined })).toBe('router ⇒ no effort')
-    expect(describeStatus(d, { model: OPUS, effort: 'high' })).toBe(`router deep@0.90 ⇒ ${OPUS} high`)
-    expect(describeStatus(d, { effort: 'xhigh' })).toBe('router deep@0.90 ⇒ xhigh')
-  })
-
-  test('the status line reads an effort key holding undefined as no effort', () => {
-    const d = decide({ tier: 'fast', confidence: 0.7 })
-    expect(describeStatus(d, { model: HAIKU, effort: undefined })).toBe(`router fast@0.70 ⇒ ${HAIKU} no effort`)
-    expect(describeStatus(d, { model: SONNET })).toBe(`router fast@0.70 ⇒ ${SONNET}`)
   })
 })

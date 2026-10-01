@@ -17,7 +17,6 @@ import {
   describeDecision,
   describeMove,
   describeSetup,
-  describeStatus,
   modelAlias,
   pendingDecisions,
   requestModelId,
@@ -358,10 +357,6 @@ async function routeTurn($: Engine, rt: Runtime, e: StepEvent): Promise<Change |
         ? ` (${routing.model} not applied: main-model switching is disabled)`
         : ''
     note($, rt, `main loop · ${routing.reason}${unapplied}`)
-  }
-  // Shown only while the current turn is changed, so a turn sent as is clears it.
-  if (rt.opts.logDecisions && rt.mainCanChange) {
-    $.ui.status(shaped.change ? describeStatus(decision, shaped.change) : undefined)
   }
   return shaped.change
 }

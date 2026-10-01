@@ -3,7 +3,7 @@
  *
  * Nothing in this file talks to the engine. Given a classifier's Decision and
  * what a request currently carries, it works out the model and effort to send,
- * and it formats the short lines the hooks write to the log and status bar.
+ * and it formats the short lines the hooks write to the log and transcript.
  */
 import { MODELS } from './models.ts'
 import type { Model } from './models.ts'
@@ -274,15 +274,4 @@ export function changeBasis(decision: Decision | null, confidence: number | null
 export function describeMove(name: string, from: string, to: string | null = null, basis: string | null = null): string {
   if (to === null) return `${name} (${from})`
   return `${name} (${from} → ${to}${basis === null ? '' : ` @ ${basis}`})`
-}
-
-/**
- * The status-bar text for a main-loop turn the router changed. A change can
- * come with no verdict: an effort is dropped when the model takes none.
- */
-export function describeStatus(decision: Decision | null, change: { model?: string; effort?: Effort }): string {
-  const verdict = decision ? `router ${decision.tier}@${num(decision.confidence)}` : 'router'
-  const model = change.model !== undefined ? ` ${change.model}` : ''
-  const effort = 'effort' in change ? ` ${change.effort ?? 'no effort'}` : ''
-  return `${verdict} ⇒${model}${effort}`
 }
