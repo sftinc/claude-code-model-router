@@ -33,6 +33,7 @@ function makeDollar(
   const logs: string[] = []
   const transcript: string[] = []
   const timers: unknown[] = []
+  const files: Record<string, string> = {}
   let clock = 0
   const calls: { url?: string; init?: { headers?: Record<string, string>; body?: string }; fetches: number } = {
     fetches: 0,
@@ -60,6 +61,15 @@ function makeDollar(
     },
     session: {
       messages: async () => (parts.messages ? parts.messages() : []),
+      id: async () => 'sess-1',
+    },
+    env: {
+      get: async (name: string) => (name === 'HOME' ? '/home/u' : undefined),
+    },
+    fs: {
+      write: async (path: string, text: string) => {
+        files[path] = text
+      },
     },
     model: {
       classify: async () => undefined,
@@ -72,7 +82,7 @@ function makeDollar(
     },
   }
   const settled = () => Promise.all(timers)
-  return { $: $ as unknown as Parameters<Parameters<typeof register>[0]>[0], logs, transcript, settled, calls }
+  return { $: $ as unknown as Parameters<Parameters<typeof register>[0]>[0], logs, transcript, settled, calls, files }
 }
 
 const promptOf = (text: string) => ({ text, wait: false, origin: { kind: 'composer' } })
@@ -120,6 +130,19 @@ describe('register', () => {
 
     expect(received.model).toBe('claude-sonnet-5')
     expect(received.effort).toBe('xhigh')
+  })
+
+  test('the effort a turn is sent with is left for the status line', async () => {
+    const { on, handlers } = recordHandlers()
+    register(on, OPTIONS)
+    const { $, files } = makeDollar({ fetch: async () => ({ ok: true, status: 200, headers: {}, text: verdict() }) })
+
+    await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('rename getUser'), promptNext)
+    await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'low'))
+    // The write is not awaited by the step; let its few awaits finish.
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+
+    expect(files).toEqual({ '/home/u/.claude/router/sess-1.effort': 'xhigh' })
   })
 
   test('a 401 is logged with its status and the step passes through unchanged', async () => {

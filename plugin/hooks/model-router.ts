@@ -361,6 +361,18 @@ async function routeTurn($: Engine, rt: Runtime, e: StepEvent): Promise<Change |
   return shaped.change
 }
 
+/**
+ * Leaves the effort this turn is sent with in ~/.claude/router/<session>.effort
+ * for a status line command to show, since the status line's own effort.level
+ * stays the session's setting. Empty when the request carries none.
+ */
+async function publishEffort($: Engine, e: StepEvent, change: Change | null): Promise<void> {
+  const effort = change && 'effort' in change ? change.effort : e.effort
+  const home = await $.env.get('HOME')
+  if (!home) return
+  await $.fs.write(`${home}/.claude/router/${await $.session.id()}.effort`, String(effort ?? ''))
+}
+
 // ---------------------------------------------------------------------------
 // agent.spawn
 
@@ -422,7 +434,11 @@ export const register: Register = (on, options) => {
 
     const sameTurn = e.index > 0 && rt.turn !== null && rt.turn.id === e.turnId
     const change = sameTurn && rt.turn ? rt.turn.change : await routeTurn($, rt, e)
-    if (!sameTurn) rt.turn = { id: e.turnId, change }
+    if (!sameTurn) {
+      rt.turn = { id: e.turnId, change }
+      // Only for the status line, so a failure here never holds up or changes the request.
+      publishEffort($, e, change).catch(() => undefined)
+    }
     return yield* next(change ? { ...e, ...change } : e)
   })
 
