@@ -61,12 +61,12 @@ Options live under `pluginConfigs` in `~/.claude/settings.json`. The key is `mod
 | `riskyThreshold` | 0.7 | Above it: deep tier, at least high effort |
 | `contextMessages` / `contextChars` | 30 / 60000 | Recent context sent with main-loop prompts |
 | `routeSubagentModel` | true | |
-| `respectAgentModels` | true | Keeps a model the Agent tool named. A model set in an agent's definition isn't visible to the router and isn't protected |
+| `respectAgentModels` | true | Keeps a model the Agent tool named, unless risk forces deep. The subagent is still classified, and its line shows both picks, such as `model (agent: sonnet; router: haiku @ 97%)` (`*` when the router would keep the agent's). A model set in an agent's definition isn't visible to the router and isn't protected |
 | `routeMainEffort` | true | |
 | `routeMainModel` | false | Switching models invalidates the prompt cache |
 | `timeoutMs` | 2000 | Wait budget for the classifier |
 | `warmUp` | true | Sends one throwaway classification when an interactive session starts, so the first prompt doesn't hit a cold classifier |
-| `logDecisions` | true | Shows one short line per routed turn or subagent in the transcript, such as `main loop · model (sonnet), effort (low → xhigh @ 90%)`, plus the warm-up; the details, including whole api replies, go to the debug log (`claude --debug`). A line reporting a failure always shows |
+| `logDecisions` | true | Shows one short line per routed turn or subagent in the transcript, such as `main loop · model (sonnet), effort (low → xhigh @ 90%)` or `subagent Explore · model (opus → haiku @ 97%)`, plus the warm-up; the details, including whole api replies, go to the debug log (`claude --debug`). A line reporting a failure always shows |
 
 A request routed to a model without effort support (Haiku) never carries an effort, whatever the switches say.
 
