@@ -378,8 +378,8 @@ async function publishEffort($: Engine, e: StepEvent, change: Change | null): Pr
 
 /**
  * Where the router sends a subagent: the model to set (null: leave it), the
- * line's model part (null: show the model the engine started it on), and the
- * classifier's failure.
+ * line's model part with any failure inside it (null: show the model the
+ * engine started it on), and the classifier's failure.
  */
 type SpawnRouting = { model: string | null; shown: string | null; failure: string | null }
 
@@ -400,13 +400,13 @@ async function routeSpawn($: Engine, rt: Runtime, e: SpawnEvent): Promise<SpawnR
   }
   if (!pinned) return { model: null, shown: null, failure }
 
-  // Kept for the agent, but still show where the router would have sent it.
+  // Kept for the agent, but still show where the router would have sent it; * means the same model.
   const agent = `agent: ${modelAlias(current)}`
-  if (!decision) return { model: null, shown: `model (${agent})`, failure }
+  if (!decision) return { model: null, shown: `model (${agent}; ${failure})`, failure }
   const unpinned = route(decision, { model: current }, rt.policy).model
-  const verdict = unpinned === null ? `would keep ${modelAlias(current)}` : `would set ${modelAlias(unpinned)}`
+  const router = unpinned === null ? '*' : modelAlias(unpinned)
   const at = basis === null ? '' : ` @ ${basis}`
-  return { model: null, shown: `model (${agent}; router: ${verdict}${at})`, failure }
+  return { model: null, shown: `model (${agent}; router: ${router}${at})`, failure }
 }
 
 /**
@@ -417,8 +417,10 @@ function reportSpawn($: Engine, rt: Runtime, e: SpawnEvent, sent: SpawnRouting, 
   const ranOn = started.deny === undefined ? started.model : undefined
   const parts: string[] = []
   if (sent.shown !== null) parts.push(sent.shown)
-  else if (ranOn !== undefined) parts.push(describeMove('model', modelAlias(ranOn)))
-  if (sent.failure !== null) parts.push(sent.failure)
+  else {
+    if (ranOn !== undefined) parts.push(describeMove('model', modelAlias(ranOn)))
+    if (sent.failure !== null) parts.push(sent.failure)
+  }
   if (parts.length === 0) return
   const line = `subagent ${e.subagentType} · ${parts.join(', ')}`
   if (sent.failure !== null) warn($, line)

@@ -290,9 +290,9 @@ describe('register', () => {
     await spawn(named('sonnet'))
 
     expect(transcript).toEqual([
-      'subagent general-purpose · model (agent: sonnet; router: would set opus @ 82%)',
-      'subagent general-purpose · model (agent: opus; router: would keep opus @ 82%)',
-      'subagent general-purpose · model (agent: sonnet), api returned HTTP 500',
+      'subagent general-purpose · model (agent: sonnet; router: opus @ 82%)',
+      'subagent general-purpose · model (agent: opus; router: * @ 82%)',
+      'subagent general-purpose · model (agent: sonnet; api returned HTTP 500)',
     ])
   })
 
