@@ -376,8 +376,12 @@ async function publishEffort($: Engine, e: StepEvent, change: Change | null): Pr
 // ---------------------------------------------------------------------------
 // agent.spawn
 
-/** Where the router sends a subagent: the model to set (null: leave it), and what to report. */
-type SpawnRouting = { model: string | null; moved: string | null; failure: string | null }
+/**
+ * Where the router sends a subagent: the model to set (null: leave it), the
+ * line's model part (null: show the model the engine started it on), and the
+ * classifier's failure.
+ */
+type SpawnRouting = { model: string | null; shown: string | null; failure: string | null }
 
 async function routeSpawn($: Engine, rt: Runtime, e: SpawnEvent): Promise<SpawnRouting> {
   const who = `subagent ${e.subagentType}`
@@ -390,9 +394,19 @@ async function routeSpawn($: Engine, rt: Runtime, e: SpawnEvent): Promise<SpawnR
   const current = e.model ?? e.parentModel
   const routing = route(decision, { model: current, pinned }, rt.policy)
   note($, rt, `${who} · ${routing.reason}`)
-  if (routing.model === null) return { model: null, moved: null, failure }
   const basis = changeBasis(decision, decision?.confidence ?? null, rt.policy)
-  return { model: routing.model, moved: describeMove('model', modelAlias(current), modelAlias(routing.model), basis), failure }
+  if (routing.model !== null) {
+    return { model: routing.model, shown: describeMove('model', modelAlias(current), modelAlias(routing.model), basis), failure }
+  }
+  if (!pinned) return { model: null, shown: null, failure }
+
+  // Kept for the agent, but still show where the router would have sent it.
+  const agent = `agent: ${modelAlias(current)}`
+  if (!decision) return { model: null, shown: `model (${agent})`, failure }
+  const unpinned = route(decision, { model: current }, rt.policy).model
+  const verdict = unpinned === null ? `would keep ${modelAlias(current)}` : `would set ${modelAlias(unpinned)}`
+  const at = basis === null ? '' : ` @ ${basis}`
+  return { model: null, shown: `model (${agent}; router: ${verdict}${at})`, failure }
 }
 
 /**
@@ -402,7 +416,7 @@ async function routeSpawn($: Engine, rt: Runtime, e: SpawnEvent): Promise<SpawnR
 function reportSpawn($: Engine, rt: Runtime, e: SpawnEvent, sent: SpawnRouting, started: AgentSpawnResult): void {
   const ranOn = started.deny === undefined ? started.model : undefined
   const parts: string[] = []
-  if (sent.moved !== null) parts.push(sent.moved)
+  if (sent.shown !== null) parts.push(sent.shown)
   else if (ranOn !== undefined) parts.push(describeMove('model', modelAlias(ranOn)))
   if (sent.failure !== null) parts.push(sent.failure)
   if (parts.length === 0) return

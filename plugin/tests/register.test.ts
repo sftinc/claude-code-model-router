@@ -272,6 +272,30 @@ describe('register', () => {
     ])
   })
 
+  test("a subagent whose model the agent named shows the agent's model beside the router's", async () => {
+    const { on, handlers } = recordHandlers()
+    register(on, OPTIONS)
+    let fetch = async () => ({ ok: true, status: 200, headers: {}, text: verdict({ tier: { value: 'deep', confidence: 0.82 } }) })
+    const { $, transcript } = makeDollar({ fetch: () => fetch() })
+    const spawn = (e: Record<string, unknown>) =>
+      (handlers['agent.spawn'] as (...a: unknown[]) => Promise<unknown>)($, e, async (got: { model?: string }) => ({
+        model: got.model ?? 'claude-haiku-4-5-20251001',
+        agentId: 'a1',
+      }))
+    const named = (model: string) => ({ prompt: 'fix it', subagentType: 'general-purpose', model, parentModel: 'claude-opus-5-5', fork: false })
+
+    await spawn(named('sonnet'))
+    await spawn(named('opus'))
+    fetch = async () => ({ ok: false, status: 500, headers: {}, text: '' })
+    await spawn(named('sonnet'))
+
+    expect(transcript).toEqual([
+      'subagent general-purpose · model (agent: sonnet; router: would set opus @ 82%)',
+      'subagent general-purpose · model (agent: opus; router: would keep opus @ 82%)',
+      'subagent general-purpose · model (agent: sonnet), api returned HTTP 500',
+    ])
+  })
+
   test('with logDecisions off only a failure is written', async () => {
     const { on, handlers } = recordHandlers()
     register(on, { ...OPTIONS, logDecisions: false })
