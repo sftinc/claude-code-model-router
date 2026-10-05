@@ -8,6 +8,10 @@
  * per labeled call with Jev's answer and the label side by side. With a replay
  * name, Jev's answers come from replays/<replay>.jsonl instead of the logs,
  * and the rows go to compared-<replay>.jsonl.
+ *
+ * Main turns and subagent turns are scored apart: Jev sees the conversation
+ * for a main turn but only the prompt for a subagent, so they miss in
+ * different ways and a single total hides the smaller group.
  */
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -44,6 +48,7 @@ const rows = jsonLines(join(run, 'requests.jsonl'))
     const label = labels.get(call.id)!
     return {
       id: call.id as string,
+      source: call.metadata.source as 'main' | 'subagent',
       prompt: String(call.request.state.prompt).slice(0, 160),
       jevTier: answers.tier.choice as Tier,
       jevTierConfidence: answers.tier.confidence as number | null,
@@ -65,7 +70,7 @@ type Pick = { model: string; effort: string }
 // ---------------------------------------------------------------------------
 // Jev against the labels
 
-function matrix(title: string, keys: string[], label: (row: Row) => string, jev: (row: Row) => string) {
+function matrix(rows: Row[], title: string, keys: string[], label: (row: Row) => string, jev: (row: Row) => string) {
   console.log(`\n${title} (rows: label, columns: Jev)`)
   console.log(['', ...keys].join('\t'))
   for (const key of keys) {
@@ -73,10 +78,6 @@ function matrix(title: string, keys: string[], label: (row: Row) => string, jev:
     console.log([key, ...counts].join('\t'))
   }
 }
-
-console.log(`${rows.length} labeled calls, Jev's answers from ${replay ? `replay ${replay}` : 'the logs'}`)
-matrix('Tier', TIERS, (row) => row.labelTier, (row) => row.jevTier)
-matrix('Effort, most likely level', ['0', '1', '2', '3'], (row) => String(row.labelEffort), (row) => String(argmaxHigh(row.jevEffortP)))
 
 // ---------------------------------------------------------------------------
 // Routing rules: add a line to RULES to try another one
@@ -106,11 +107,14 @@ function viaPolicy(effort: (row: Row) => number, bars: { up: number; down: numbe
 }
 
 /**
- * Haiku only when P(fast) clears `fast`, Opus only when P(deep) clears `deep`, else Sonnet; effort always follows.
- * With 0.7 and 0.4 this is what the Worker's tierFrom and effortFrom send today.
+ * Haiku only when P(fast) clears `fast`, Opus only when P(deep) clears `deep`
+ * (`subagentDeep` for a subagent turn), else Sonnet; effort always follows.
+ * With 0.7, 0.4 and 0.6 this is what the Worker's tierFrom and effortFrom send today.
  */
-const byProbability = (fast: number, deep: number, effort: (row: Row) => number) => (row: Row): Pick => ({
-  model: MODEL_OF[row.jevTierP.fast >= fast ? 'fast' : (row.jevTierP.deep ?? 0) >= deep ? 'deep' : 'balanced'],
+const byProbability = (fast: number, deep: number, effort: (row: Row) => number, subagentDeep = deep) => (row: Row): Pick => ({
+  model: MODEL_OF[
+    row.jevTierP.fast >= fast ? 'fast' : (row.jevTierP.deep ?? 0) >= (row.source === 'subagent' ? subagentDeep : deep) ? 'deep' : 'balanced'
+  ],
   effort: EFFORTS[effort(row)]!,
 })
 
@@ -119,7 +123,8 @@ const RULES: [string, (row: Row, start: Pick) => Pick][] = [
   ['bars 0.3 up / 0.6 down, score effort', viaPolicy(scoreEffort, { up: 0.3, down: 0.6 })],
   ['follow Jev (no bars), score effort', viaPolicy(scoreEffort, { up: 0, down: 0 })],
   ['haiku P(fast)>=0.6, opus P(deep)>=0.4, score effort', byProbability(0.6, 0.4, scoreEffort)],
-  ['live: haiku P(fast)>=0.7, opus P(deep)>=0.4, score', byProbability(0.7, 0.4, scoreEffort)],
+  ['round 1: haiku P(fast)>=0.7, opus P(deep)>=0.4', byProbability(0.7, 0.4, scoreEffort)],
+  ['live: as round 1, subagent opus at P(deep)>=0.6', byProbability(0.7, 0.4, scoreEffort, 0.6)],
 ]
 
 /** A turn starts on the session's model and effort; the rule decides what it moves to. */
@@ -133,22 +138,33 @@ const count = (t: ReturnType<typeof tally>, diff: number) => t[diff > 0 ? 'over'
 const show = (t: ReturnType<typeof tally>) => `${t.over}/${t.right}/${t.under}`
 const rank = (model: string) => TIERS.findIndex((tier) => MODEL_OF[tier] === model)
 
-for (const start of STARTS) {
-  console.log(`\nEach turn starting on ${start.model}/${start.effort}`)
-  console.log(`  ${'rule'.padEnd(52)} ${'tier o/r/u'.padEnd(12)} ${'haiku miss'.padEnd(11)} effort o/r/u (haiku turns left out)`)
-  for (const [name, pick] of RULES) {
-    const tier = tally()
-    const effort = tally()
-    let haikuMisses = 0
-    for (const row of rows) {
-      const got = pick(row, start)
-      count(tier, rank(got.model) - TIERS.indexOf(row.labelTier))
-      if (got.model === 'haiku') {
-        if (row.labelTier !== 'fast') haikuMisses++
-        continue
+function report(rows: Row[]) {
+  matrix(rows, 'Tier', TIERS, (row) => row.labelTier, (row) => row.jevTier)
+  matrix(rows, 'Effort, most likely level', ['0', '1', '2', '3'], (row) => String(row.labelEffort), (row) => String(argmaxHigh(row.jevEffortP)))
+  for (const start of STARTS) {
+    console.log(`\nEach turn starting on ${start.model}/${start.effort}`)
+    console.log(`  ${'rule'.padEnd(52)} ${'tier o/r/u'.padEnd(12)} ${'haiku miss'.padEnd(11)} effort o/r/u (haiku turns left out)`)
+    for (const [name, pick] of RULES) {
+      const tier = tally()
+      const effort = tally()
+      let haikuMisses = 0
+      for (const row of rows) {
+        const got = pick(row, start)
+        count(tier, rank(got.model) - TIERS.indexOf(row.labelTier))
+        if (got.model === 'haiku') {
+          if (row.labelTier !== 'fast') haikuMisses++
+          continue
+        }
+        count(effort, EFFORTS.indexOf(got.effort) - row.labelEffort)
       }
-      count(effort, EFFORTS.indexOf(got.effort) - row.labelEffort)
+      console.log(`  ${name.padEnd(52)} ${show(tier).padEnd(12)} ${String(haikuMisses).padEnd(11)} ${show(effort)}`)
     }
-    console.log(`  ${name.padEnd(52)} ${show(tier).padEnd(12)} ${String(haikuMisses).padEnd(11)} ${show(effort)}`)
   }
+}
+
+console.log(`${rows.length} labeled calls, Jev's answers from ${replay ? `replay ${replay}` : 'the logs'}`)
+for (const source of ['main', 'subagent'] as const) {
+  const group = rows.filter((row) => row.source === source)
+  console.log(`\n=== ${source}: ${group.length} calls ===`)
+  if (group.length) report(group)
 }

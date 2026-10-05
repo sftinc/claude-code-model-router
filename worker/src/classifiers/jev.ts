@@ -8,7 +8,7 @@
  * into a 502 and the mod into "request unchanged".
  */
 import { confidenceOf } from '../confidence'
-import type { Classifier, EffortLevel, Tier } from '../types'
+import type { Classifier, EffortLevel, Situation, Tier } from '../types'
 import { QUESTIONS } from './jev-questions'
 
 const TIERS: readonly Tier[] = ['fast', 'balanced', 'deep']
@@ -76,11 +76,13 @@ export function parseAnswers(response: unknown): Parsed {
  * The tier to send, read from Jev's probabilities rather than its pick. Fast
  * needs a clear lead, because fast work that isn't sends real work to the
  * smallest model; deep needs less, because Jev seldom gives it much weight at
- * all. Anything in between is balanced. Tuned in probe/RESULTS.md, round 1.
+ * all. A subagent's bar is higher: Jev sees only its brief, and a long,
+ * detailed brief reads as deep work when most of it isn't. Anything in between
+ * is balanced. Tuned in probe/RESULTS.md, rounds 1 and 2.
  */
-export function tierFrom(probabilities: Record<string, number>): Tier {
+export function tierFrom(probabilities: Record<string, number>, source: Situation['source']): Tier {
   if ((probabilities.fast ?? 0) >= 0.7) return 'fast'
-  if ((probabilities.deep ?? 0) >= 0.4) return 'deep'
+  if ((probabilities.deep ?? 0) >= (source === 'subagent' ? 0.6 : 0.4)) return 'deep'
   return 'balanced'
 }
 
@@ -97,7 +99,7 @@ export const jev: Classifier = {
   async classify(situation, env, gateway) {
     const result = await env.AI.run('typesafe/jev', { state: situation, questions: QUESTIONS }, { gateway })
     const parsed = parseAnswers(result)
-    const tier = tierFrom(parsed.tier.probabilities)
+    const tier = tierFrom(parsed.tier.probabilities, situation.source)
     return {
       classifier: `typesafe/jev@${parsed.model}`,
       // Confidence in the tier sent, which may not be the one Jev picked.

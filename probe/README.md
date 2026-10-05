@@ -33,7 +33,7 @@ Each subagent writes `labels/<batch>.jsonl`, one `{id, tier, effort, reason}` pe
 node probe/score.ts probe/logs/<run>
 ```
 
-This prints:
+This prints a separate report for main turns and for subagent turns (by the log's `metadata.source`). Jev sees the conversation for a main turn but only the prompt for a subagent, so the two miss in different ways. Each report has:
 
 - **Tier and effort matrices:** label against Jev's answer. Off-diagonal cells are the disagreements.
 - **Routing rules:** for each rule in `RULES`, what the turns would have been sent to, from two starting points (Opus/high, Sonnet/medium). `o/r/u` counts turns that ended over, right, or under the label. `haiku miss` counts non-fast work sent to Haiku, the costliest kind of miss. Effort leaves out Haiku turns, since Haiku takes no effort.

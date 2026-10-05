@@ -78,3 +78,33 @@ Their question files are in git at `a112cea`, under `probe/questions/`, with the
 
 - **v1-a:** rewrote the tier ladder as kinds of work, with examples. Effort improved, but tier fell to 103 right: the examples pulled balanced work into both fast and deep, and background notices jumped to deep. The notice rule in v1-b came from this.
 - **v1-c:** v1-a plus the notice rule. Tier fell further, to 101 right, with 48 non-fast calls sent to fast. v1-a's ladder was the problem, not the notices.
+
+## Round 2: v1, a higher Opus bar for subagents
+
+Questions unchanged; only the routing rule moved. From this round on, `score.ts` scores main and subagent turns apart: Jev sees the conversation for a main turn but only the brief for a subagent, so they miss in different ways.
+
+**Run.** `2026-10-05-1436`: 403 calls from October 3 (22:16 UTC, once the plugin again classified subagents the agent named a model for) to October 5, 2026: 321 main-agent turns, 82 subagents, all on Worker version `4487dd8e`. Five calls had no stored body and were left out. Labeled blind as in round 1: main 108 fast, 196 balanced, 17 deep; subagents 5 fast, 73 balanced, 4 deep.
+
+### Starting point: v1 with round 1's rule
+
+| Turns | Tier o/r/u | Haiku miss | Effort o/r/u | Deep caught |
+|---|---|---|---|---|
+| main (321) | 73/230/18 | 11 | 62/131/75 | 10 of 17 |
+| subagent (82) | 40/42/0 | 0 | 16/59/3 | 4 of 4 |
+
+Main turns did better than in round 1 (72% of tiers right against 55%), and deep calls are now caught, but effort leans under. Subagents go to Opus far too often: long, detailed briefs read as deep work, and the P(deep) ≥ 0.4 bar sends 44 of 82 there when the labels put 4.
+
+### Shipped: subagent Opus at P(deep) ≥ 0.6
+
+**Status: live since 2026-10-05, Worker version `2bd86ac4`.** `tierFrom` in `worker/src/classifiers/jev.ts` takes the situation's source and needs P(deep) ≥ 0.6 for a subagent; main turns keep 0.4.
+
+| Subagent Opus bar | Tier o/r/u | Deep caught |
+|---|---|---|
+| 0.4 (round 1) | 40/42/0 | 4 of 4 |
+| 0.5 | 22/60/0 | 4 of 4 |
+| **0.6** | **14/68/0** | **4 of 4** |
+| 0.7 | 9/72/1 | 3 of 4 |
+
+The lowest P(deep) on a deep-labeled subagent was 0.68, but there were only 4 of them, so check the bar again once a run has more. For main turns a higher bar didn't pay: at 0.5, two more tiers were right and three more were under.
+
+**Still open.** Main-turn effort is under the label on 75 of 268 non-Haiku turns. The 14 subagents still over are briefs with P(deep) from 0.6 to 0.96, which the probabilities alone can't tell apart from real deep work.

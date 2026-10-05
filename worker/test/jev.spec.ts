@@ -59,6 +59,13 @@ describe('jev adapter', () => {
     expect((await classifyWith(tierAnswer('deep', { fast: 0.25, balanced: 0.36, deep: 0.39 }))).tier.value).toBe('balanced')
   })
 
+  test('a subagent turn is deep only once P(deep) reaches 0.6', async () => {
+    const subagentWith = (probabilities: Record<string, number>) =>
+      jev.classify({ source: 'subagent', prompt: 'go' }, envAnswering(answer(tierAnswer('balanced', probabilities))), GATEWAY)
+    expect((await subagentWith({ fast: 0.05, balanced: 0.4, deep: 0.55 })).tier.value).toBe('balanced')
+    expect((await subagentWith({ fast: 0.05, balanced: 0.35, deep: 0.6 })).tier.value).toBe('deep')
+  })
+
   test("tier confidence is for the tier sent, from its probability over the three asked", async () => {
     const sent = await classifyWith(tierAnswer('fast', { fast: 0.75, balanced: 0.15, deep: 0.1 }))
     expect(sent.tier.confidence).toBeCloseTo(0.625, 3)
