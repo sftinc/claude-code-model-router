@@ -143,7 +143,7 @@ function report(rows: Row[]) {
   matrix(rows, 'Effort, most likely level', ['0', '1', '2', '3'], (row) => String(row.labelEffort), (row) => String(argmaxHigh(row.jevEffortP)))
   for (const start of STARTS) {
     console.log(`\nEach turn starting on ${start.model}/${start.effort}`)
-    console.log(`  ${'rule'.padEnd(52)} ${'tier o/r/u'.padEnd(12)} ${'haiku miss'.padEnd(11)} effort o/r/u (haiku turns left out)`)
+    console.log(`  ${'rule'.padEnd(52)} ${'tier o/r/u'.padEnd(12)} ${'haiku miss'.padEnd(11)} effort o/r/u`)
     for (const [name, pick] of RULES) {
       const tier = tally()
       const effort = tally()
@@ -151,10 +151,7 @@ function report(rows: Row[]) {
       for (const row of rows) {
         const got = pick(row, start)
         count(tier, rank(got.model) - TIERS.indexOf(row.labelTier))
-        if (got.model === 'haiku') {
-          if (row.labelTier !== 'fast') haikuMisses++
-          continue
-        }
+        if (got.model === 'haiku' && row.labelTier !== 'fast') haikuMisses++
         count(effort, EFFORTS.indexOf(got.effort) - row.labelEffort)
       }
       console.log(`  ${name.padEnd(52)} ${show(tier).padEnd(12)} ${String(haikuMisses).padEnd(11)} ${show(effort)}`)

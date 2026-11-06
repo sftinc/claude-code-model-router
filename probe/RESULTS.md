@@ -108,3 +108,33 @@ Main turns did better than in round 1 (72% of tiers right against 55%), and deep
 The lowest P(deep) on a deep-labeled subagent was 0.68, but there were only 4 of them, so check the bar again once a run has more. For main turns a higher bar didn't pay: at 0.5, two more tiers were right and three more were under.
 
 **Still open.** Main-turn effort is under the label on 75 of 268 non-Haiku turns. The 14 subagents still over are briefs with P(deep) from 0.6 to 0.96, which the probabilities alone can't tell apart from real deep work.
+
+## Round 3: effort framed as checking, and more subagents on Haiku
+
+From this round on, `score.ts` counts Haiku turns in effort, since Haiku 5.5 takes it. Effort numbers here aren't comparable with rounds 1 and 2. `routeMainModel` is off in the setup these logs come from, so main-turn tier numbers are what-if figures; only main effort and subagent model were live.
+
+**Run.** `2026-11-06-0943`: 400 calls from November 1 to 6, 2026: 352 main-agent turns, 48 subagents, all on Worker version `2bd86ac4`. Labeled blind from `label-prompt.md`: main 143 fast, 174 balanced, 35 deep; subagents 15 fast, 23 balanced, 10 deep. The work leaned heavily on one production project.
+
+**Noise.** Replaying the live questions reproduced 387 of 400 effort levels and 380 of 400 routed tiers.
+
+### Starting point: v1 with round 2's rule
+
+| Turns | Tier o/r/u | Haiku miss | Deep caught |
+|---|---|---|---|
+| main (352) | 102/222/28 | 10 | 17 of 35 |
+| subagent (48) | 21/27/0 | 0 | 10 of 10 |
+
+### Tried and dropped
+
+Anthropic describes effort as how much checking and independent work a turn gets, while the model sets capability, so v2-a rewrote the effort question that way: quick in-the-loop work; regular engineering reviewed once; work that must be verified before it counts as done; long, hard work carried on alone. Effort was relabeled blind under a matching rubric, keeping the tier labels, which moved low-labeled turns from 29% to 61%. Scored against those labels at today's rounding:
+
+| Questions | Main effort o/r/u | Main set to low | Main labeled high or above but set lower | Subagent effort o/r/u |
+|---|---|---|---|---|
+| v1 | 186/124/42 | 64 | 33 of 45 | 29/19/0 |
+| v2-a | 121/175/56 | 134 | 38 of 45 | 12/35/1 |
+| v2-b | 129/168/55 | 125 | 37 of 45 | 12/33/3 |
+
+- **v2-a:** agrees with the labels far more, but the labels and the wording share a framing, so part of that is built in. It doubles main turns at low and still misses most turns that need checking. Logs can't show whether lower effort held up, so it didn't ship.
+- **v2-b:** v2-a without the line telling Jev to ignore how serious the work is. No real difference.
+
+Many of the missed high turns are short approvals that start real work, the same gap behind the deep misses.
