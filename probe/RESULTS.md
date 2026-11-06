@@ -124,7 +124,26 @@ From this round on, `score.ts` counts Haiku turns in effort, since Haiku 5.5 tak
 | main (352) | 102/222/28 | 10 | 17 of 35 |
 | subagent (48) | 21/27/0 | 0 | 10 of 10 |
 
+### Shipped: subagent Haiku at P(fast) ≥ 0.5, and subagent effort
+
+**Status: live since 2026-11-06, Worker version `a01f63b7`, with the plugin at the commit that logged this entry.** `tierFrom` in `worker/src/classifiers/jev.ts` needs P(fast) ≥ 0.5 for a subagent; main turns keep 0.7. The plugin also set no effort for subagents until now, though Jev scored it: a subagent's steps now run at that effort, under the new `routeSubagentEffort` option. A background subagent's first step may still run at its default, because its id isn't known until it has started.
+
+| Subagent Haiku bar | November: sent to Haiku, misses, tiers right of 48 | October: sent to Haiku, misses, tiers right of 82 |
+|---|---|---|
+| 0.7 (round 2) | 2, 0, 27 | 4, 0, 68 |
+| 0.6 | 3, 0, 28 | 4, 0, 68 |
+| **0.5** | **9, 0, 34** | **4, 0, 68** |
+| 0.3 | 13, 1, 36 | 4, 0, 68 |
+
+For effort, Jev's score came in under the label on 0 of 46 non-Haiku subagents in November and 3 of 78 in October, on the labels each run had before the relabeling below.
+
+The plugin's model list also stopped naming fixed ids: requests name the alias, and real sessions confirmed each resolves to the latest model.
+
+**Still open.** Short approvals still miss on both tier and effort. Eight subagents sent to Opus were labeled balanced, and raising the bar to 0.7 loses 2 deep ones. Whether cheaper subagents hold up in practice needs the next run: logs don't show results or tokens per subagent.
+
 ### Tried and dropped
+
+Their question files are in git at `a258405`, under `probe/questions/`. The relabeling's rubric wasn't kept, so `label-prompt.md` stays as it was.
 
 Anthropic describes effort as how much checking and independent work a turn gets, while the model sets capability, so v2-a rewrote the effort question that way: quick in-the-loop work; regular engineering reviewed once; work that must be verified before it counts as done; long, hard work carried on alone. Effort was relabeled blind under a matching rubric, keeping the tier labels, which moved low-labeled turns from 29% to 61%. Scored against those labels at today's rounding:
 
