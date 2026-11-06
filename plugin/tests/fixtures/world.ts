@@ -64,7 +64,7 @@ export function spawnOf(overrides: Partial<Args<'agent.spawn'>> = {}): Args<'age
     description: 'Find callers',
     subagentType: 'Explore',
     provider: { plugin: 'engine', tier: 'core' },
-    parentModel: 'claude-sonnet-5',
+    parentModel: 'claude-sonnet-5-5',
     background: false,
     fork: false,
     ...overrides,

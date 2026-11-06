@@ -3,7 +3,7 @@ import { describe, expect, test } from 'claude-code/testing'
 import { drain, promptOf, spawnOf, stepOf, worldOf } from './fixtures/world.ts'
 
 describe('model-router', () => {
-  test('a Haiku request never carries effort, on every step of the turn', async ($, on) => {
+  test('a Haiku 4.5 request never carries effort, on every step of the turn', async ($, on) => {
     const world = worldOf(on)
     await drain($.turn.step(stepOf('t1', 0, 'claude-haiku-4-5-20251001', 'high')))
     await drain($.turn.step(stepOf('t1', 1, 'claude-haiku-4-5-20251001', 'high')))
@@ -13,9 +13,15 @@ describe('model-router', () => {
     ])
   })
 
+  test('a Haiku 5.5 request keeps its effort', async ($, on) => {
+    const world = worldOf(on)
+    await drain($.turn.step(stepOf('t1', 0, 'claude-haiku-5-5', 'medium')))
+    expect(world.steps[0]?.effort).toBe('medium')
+  })
+
   test('a Sonnet request with no decision keeps its effort', async ($, on) => {
     const world = worldOf(on)
-    await drain($.turn.step(stepOf('t1', 0, 'claude-sonnet-5', 'medium')))
+    await drain($.turn.step(stepOf('t1', 0, 'claude-sonnet-5-5', 'medium')))
     expect(world.steps[0]?.effort).toBe('medium')
   })
 
@@ -29,7 +35,7 @@ describe('model-router', () => {
   test('unreadable history does not matter when the main loop cannot change', async ($, on) => {
     const world = worldOf(on, { label: 'deep', history: 'fail' })
     await $.prompt.submit(promptOf('ok, go ahead'))
-    await drain($.turn.step(stepOf('t1', 0, 'claude-sonnet-5', 'high')))
+    await drain($.turn.step(stepOf('t1', 0, 'claude-sonnet-5-5', 'high')))
     expect(world.classified).toBe(0)
     expect(world.lines.some((line) => line.includes('session history unavailable'))).toBe(false)
     expect(world.steps[0]?.effort).toBe('high')

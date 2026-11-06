@@ -126,9 +126,9 @@ describe('register', () => {
     const { $ } = makeDollar({ fetch: async () => ({ ok: true, status: 200, headers: {}, text: verdict() }) })
 
     await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('rename getUser'), promptNext)
-    const received = await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'low'))
+    const received = await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5-5', 'low'))
 
-    expect(received.model).toBe('claude-sonnet-5')
+    expect(received.model).toBe('claude-sonnet-5-5')
     expect(received.effort).toBe('xhigh')
   })
 
@@ -138,7 +138,7 @@ describe('register', () => {
     const { $, files } = makeDollar({ fetch: async () => ({ ok: true, status: 200, headers: {}, text: verdict() }) })
 
     await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('rename getUser'), promptNext)
-    await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'low'))
+    await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5-5', 'low'))
     // The write is not awaited by the step; let its few awaits finish.
     for (let i = 0; i < 10; i++) await Promise.resolve()
 
@@ -151,10 +151,10 @@ describe('register', () => {
     const { $, logs } = makeDollar({ fetch: async () => ({ ok: false, status: 401, headers: {}, text: '' }) })
 
     await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('rename getUser'), promptNext)
-    const received = await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'medium'))
+    const received = await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5-5', 'medium'))
 
     expect(logs.some((line) => line.includes('HTTP 401'))).toBe(true)
-    expect(received.model).toBe('claude-sonnet-5')
+    expect(received.model).toBe('claude-sonnet-5-5')
     expect(received.effort).toBe('medium')
   })
 
@@ -164,10 +164,10 @@ describe('register', () => {
     const { $, logs } = makeDollar({ fetch: async () => ({ ok: true, status: 200, headers: {}, text: '{nope' }) })
 
     await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('rename getUser'), promptNext)
-    const received = await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'medium'))
+    const received = await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5-5', 'medium'))
 
     expect(logs.some((line) => line.includes('malformed verdict'))).toBe(true)
-    expect(received.model).toBe('claude-sonnet-5')
+    expect(received.model).toBe('claude-sonnet-5-5')
     expect(received.effort).toBe('medium')
   })
 
@@ -180,14 +180,14 @@ describe('register', () => {
     })
 
     await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('rename getUser'), promptNext)
-    const received = await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'medium'))
+    const received = await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5-5', 'medium'))
 
     expect(logs).toContain('main loop · model (sonnet), effort (medium), no reply from the api within 2000ms')
-    expect(received.model).toBe('claude-sonnet-5')
+    expect(received.model).toBe('claude-sonnet-5-5')
     expect(received.effort).toBe('medium')
   })
 
-  test('routeMainModel rewrites a Sonnet/high step to Haiku and clears its effort explicitly', async () => {
+  test('routeMainModel rewrites a Sonnet/high step to Haiku and sets its effort', async () => {
     const { on, handlers } = recordHandlers()
     register(on, OPTIONS)
     const { $ } = makeDollar({
@@ -200,11 +200,10 @@ describe('register', () => {
     })
 
     await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('rename getUser'), promptNext)
-    const received = await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'high'))
+    const received = await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5-5', 'high'))
 
-    expect(received.model).toBe('claude-haiku-4-5-20251001')
-    expect('effort' in received).toBe(true)
-    expect(received.effort).toBeUndefined()
+    expect(received.model).toBe('haiku')
+    expect(received.effort).toBe('medium')
   })
 
   test('the transcript gets one line per turn, with the failure when there is one; details go to the debug log', async () => {
@@ -216,10 +215,10 @@ describe('register', () => {
     })
 
     await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('first'), promptNext)
-    await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'low'))
+    await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5-5', 'low'))
     ok = false
     await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('second'), promptNext)
-    await stepThrough(handlers, $, stepOf('t2', 0, 'claude-sonnet-5', 'low'))
+    await stepThrough(handlers, $, stepOf('t2', 0, 'claude-sonnet-5-5', 'low'))
 
     expect(transcript).toEqual([
       'main loop · model (sonnet), effort (low → xhigh @ 90%)',
@@ -230,7 +229,7 @@ describe('register', () => {
     expect(logs.some((line) => line.startsWith('main loop · verdict via api:'))).toBe(true)
   })
 
-  test('a model change and a dropped effort show as aliases', async () => {
+  test('a model change and an effort change show as aliases', async () => {
     const { on, handlers } = recordHandlers()
     register(on, OPTIONS)
     const { $, transcript } = makeDollar({
@@ -243,9 +242,27 @@ describe('register', () => {
     })
 
     await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('rename getUser'), promptNext)
-    await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'high'))
+    await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5-5', 'high'))
 
-    expect(transcript).toEqual(['main loop · model (sonnet → haiku @ 90%), effort (dropped)'])
+    expect(transcript).toEqual(['main loop · model (sonnet → haiku @ 90%), effort (high → medium @ 90%)'])
+  })
+
+  test('a step on Haiku 4 shows its effort dropped', async () => {
+    const { on, handlers } = recordHandlers()
+    register(on, OPTIONS)
+    const { $, transcript } = makeDollar({
+      fetch: async () => ({
+        ok: true,
+        status: 200,
+        headers: {},
+        text: verdict({ tier: { value: 'fast', confidence: 0.9 }, effort: { level: 1, confidence: 0.9 } }),
+      }),
+    })
+
+    await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('rename getUser'), promptNext)
+    await stepThrough(handlers, $, stepOf('t1', 0, 'claude-haiku-4-5-20251001', 'high'))
+
+    expect(transcript).toEqual(['main loop · model (haiku-4), effort (dropped)'])
   })
 
   test('a subagent line shows the change, or the model it started on when left alone', async () => {
@@ -257,10 +274,10 @@ describe('register', () => {
     })
     const spawn = (e: Record<string, unknown>) =>
       (handlers['agent.spawn'] as (...a: unknown[]) => Promise<unknown>)($, e, async (got: { model?: string }) => ({
-        model: got.model ?? 'claude-haiku-4-5-20251001',
+        model: got.model ?? 'claude-haiku-5-5',
         agentId: 'a1',
       }))
-    const spawnEvent = { prompt: 'find callers', description: 'Find', subagentType: 'Explore', parentModel: 'claude-sonnet-5', fork: false }
+    const spawnEvent = { prompt: 'find callers', description: 'Find', subagentType: 'Explore', parentModel: 'claude-sonnet-5-5', fork: false }
 
     await spawn(spawnEvent)
     tier = 'balanced'
@@ -279,7 +296,7 @@ describe('register', () => {
     const { $, transcript } = makeDollar({ fetch: () => fetch() })
     const spawn = (e: Record<string, unknown>) =>
       (handlers['agent.spawn'] as (...a: unknown[]) => Promise<unknown>)($, e, async (got: { model?: string }) => ({
-        model: got.model ?? 'claude-haiku-4-5-20251001',
+        model: got.model ?? 'claude-haiku-5-5',
         agentId: 'a1',
       }))
     const named = (model: string) => ({ prompt: 'fix it', subagentType: 'general-purpose', model, parentModel: 'claude-opus-5-5', fork: false })
@@ -302,7 +319,7 @@ describe('register', () => {
     const { $, logs } = makeDollar({ fetch: async () => ({ ok: false, status: 500, headers: {}, text: '' }) })
 
     await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('first'), promptNext)
-    await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'low'))
+    await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5-5', 'low'))
 
     expect(logs).toEqual(['main loop · model (sonnet), effort (low), api returned HTTP 500'])
   })
@@ -313,7 +330,7 @@ describe('register', () => {
     const { $, logs } = makeDollar({ fetch: async () => ({ ok: true, status: 200, headers: {}, text: verdict() }) })
 
     await (handlers['prompt.submit'] as (...a: unknown[]) => Promise<unknown>)($, promptOf('first'), promptNext)
-    const received = await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5', 'low'))
+    const received = await stepThrough(handlers, $, stepOf('t1', 0, 'claude-sonnet-5-5', 'low'))
 
     expect(received.effort).toBe('xhigh')
     expect(logs).toEqual([])

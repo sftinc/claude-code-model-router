@@ -19,7 +19,7 @@ import {
   describeSetup,
   modelAlias,
   pendingDecisions,
-  requestModelId,
+  requestModel,
   route,
   supportsEffort,
 } from './policy.ts'
@@ -308,7 +308,7 @@ type Shaped = { change: Change | null; stripped: boolean; sendsTo: string }
  * one but its destination model takes none, regardless of the switches.
  */
 function shapeChange(routing: Routing, e: StepEvent, opts: Options): Shaped {
-  const model = opts.routeMainModel && routing.model !== null ? requestModelId(routing.model) : undefined
+  const model = opts.routeMainModel && routing.model !== null ? requestModel(routing.model) : undefined
   const sendsTo = model ?? e.model
   const stripped = e.effort !== undefined && !supportsEffort(sendsTo)
 

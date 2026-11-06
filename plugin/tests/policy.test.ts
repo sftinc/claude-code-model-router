@@ -12,7 +12,7 @@ import {
   modelAlias,
   pendingDecisions,
   rankOf,
-  requestModelId,
+  requestModel,
   route,
   supportsEffort,
 } from '../hooks/policy.ts'
@@ -25,9 +25,9 @@ const CONFIG: PolicyConfig = {
   riskyThreshold: 0.7,
 }
 
-const SONNET = 'claude-sonnet-5'
+const SONNET = 'claude-sonnet-5-5'
 const OPUS = 'claude-opus-5-5'
-const HAIKU = 'claude-haiku-4-5-20251001'
+const HAIKU = 'claude-haiku-5-5'
 
 /** A decision with no effort and no risk; override what a case needs. */
 const decide = (patch: Partial<Decision> = {}): Decision => ({
@@ -95,21 +95,23 @@ describe('rankOf', () => {
 })
 
 describe('model ids', () => {
-  test('aliases expand after trimming and lowercasing', () => {
-    expect(requestModelId('haiku')).toBe(HAIKU)
-    expect(requestModelId(' Sonnet ')).toBe(SONNET)
-    expect(requestModelId('OPUS')).toBe(OPUS)
-    expect(requestModelId('fable')).toBe('claude-fable-5-1')
+  test('an alias stays an alias, so the engine resolves it to the latest model', () => {
+    expect(requestModel('haiku')).toBe('haiku')
+    expect(requestModel(' Sonnet ')).toBe('sonnet')
+    expect(requestModel('OPUS')).toBe('opus')
+    expect(requestModel('fable')).toBe('fable')
   })
 
   test('anything that is not an alias comes back unchanged', () => {
-    expect(requestModelId('claude-sonnet-4-5')).toBe('claude-sonnet-4-5')
-    expect(requestModelId(' custom ')).toBe(' custom ')
+    expect(requestModel('claude-sonnet-4-5')).toBe('claude-sonnet-4-5')
+    expect(requestModel(' custom ')).toBe(' custom ')
   })
 
-  test('only Haiku models refuse effort', () => {
-    expect(supportsEffort(HAIKU)).toBe(false)
-    expect(supportsEffort('HAIKU')).toBe(false)
+  test('only Haiku 4 models refuse effort', () => {
+    expect(supportsEffort('claude-haiku-4-5-20251001')).toBe(false)
+    expect(supportsEffort('CLAUDE-HAIKU-4-5')).toBe(false)
+    expect(supportsEffort(HAIKU)).toBe(true)
+    expect(supportsEffort('haiku')).toBe(true)
     expect(supportsEffort(SONNET)).toBe(true)
     expect(supportsEffort('something-else')).toBe(true)
   })

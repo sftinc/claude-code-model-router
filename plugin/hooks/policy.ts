@@ -88,10 +88,10 @@ export function rankOf(model: string, tiers: Tiers): number | null {
   return known ? TIER_ORDER.indexOf(known.tier) : null
 }
 
-/** The full model id for a short alias; anything that isn't an alias comes back untouched. */
-export function requestModelId(model: string): string {
+/** The model to name on a request: an alias in its plain form, so the engine picks the latest; anything else untouched. */
+export function requestModel(model: string): string {
   const alias = model.trim().toLowerCase()
-  return MODELS.find((known) => known.alias === alias)?.id ?? model
+  return MODELS.find((known) => known.alias === alias)?.alias ?? model
 }
 
 /** The name a line shows for a model: its alias when it's listed, otherwise as given. */
