@@ -76,12 +76,13 @@ export function parseAnswers(response: unknown): Parsed {
  * The tier to send, read from Jev's probabilities rather than its pick. Fast
  * needs a clear lead, because fast work that isn't sends real work to the
  * smallest model; deep needs less, because Jev seldom gives it much weight at
- * all. A subagent's bar is higher: Jev sees only its brief, and a long,
- * detailed brief reads as deep work when most of it isn't. Anything in between
- * is balanced. Tuned in probe/RESULTS.md, rounds 1 and 2.
+ * all. A subagent's bars differ because Jev sees only its brief: a long,
+ * detailed brief reads as deep work when most of it isn't, and simple briefs
+ * seldom reach a main turn's bar for fast. Anything in between is balanced.
+ * Tuned in probe/RESULTS.md, rounds 1 to 3.
  */
 export function tierFrom(probabilities: Record<string, number>, source: Situation['source']): Tier {
-  if ((probabilities.fast ?? 0) >= 0.7) return 'fast'
+  if ((probabilities.fast ?? 0) >= (source === 'subagent' ? 0.5 : 0.7)) return 'fast'
   if ((probabilities.deep ?? 0) >= (source === 'subagent' ? 0.6 : 0.4)) return 'deep'
   return 'balanced'
 }

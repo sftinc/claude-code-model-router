@@ -51,6 +51,7 @@ type Options = {
   contextChars: number
   routeSubagentModel: boolean
   respectAgentModels: boolean
+  routeSubagentEffort: boolean
   routeMainEffort: boolean
   routeMainModel: boolean
   timeoutMs: number
@@ -73,6 +74,7 @@ const OPTION_DEFAULTS: Readonly<Options> = {
   contextChars: 60000,
   routeSubagentModel: true,
   respectAgentModels: true,
+  routeSubagentEffort: true,
   routeMainEffort: true,
   routeMainModel: false,
   timeoutMs: 2000,
@@ -102,6 +104,8 @@ type Runtime = {
   once: { setup: boolean; apiWarning: boolean; historyWarning: boolean }
   pending: ReturnType<typeof pendingDecisions<Classified>>
   turn: { id: string; change: Change | null } | null
+  /** What each subagent was classified as, for its steps' effort; the spawn is the only time it's known. */
+  subagents: Map<string, { decision: Decision; who: string; told: boolean }>
 }
 
 function createRuntime(opts: Options): Runtime {
@@ -121,6 +125,7 @@ function createRuntime(opts: Options): Runtime {
     once: { setup: false, apiWarning: false, historyWarning: false },
     pending: pendingDecisions<Classified>(),
     turn: null,
+    subagents: new Map(),
   }
 }
 
@@ -381,7 +386,7 @@ async function publishEffort($: Engine, e: StepEvent, change: Change | null): Pr
  * line's model part with any failure inside it (null: show the model the
  * engine started it on), and the classifier's failure.
  */
-type SpawnRouting = { model: string | null; shown: string | null; failure: string | null }
+type SpawnRouting = { model: string | null; shown: string | null; failure: string | null; decision: Decision | null }
 
 async function routeSpawn($: Engine, rt: Runtime, e: SpawnEvent): Promise<SpawnRouting> {
   const who = `subagent ${e.subagentType}`
@@ -396,17 +401,17 @@ async function routeSpawn($: Engine, rt: Runtime, e: SpawnEvent): Promise<SpawnR
   note($, rt, `${who} · ${routing.reason}`)
   const basis = changeBasis(decision, decision?.confidence ?? null, rt.policy)
   if (routing.model !== null) {
-    return { model: routing.model, shown: describeMove('model', modelAlias(current), modelAlias(routing.model), basis), failure }
+    return { model: routing.model, shown: describeMove('model', modelAlias(current), modelAlias(routing.model), basis), failure, decision }
   }
-  if (!pinned) return { model: null, shown: null, failure }
+  if (!pinned) return { model: null, shown: null, failure, decision }
 
   // Kept for the agent, but still show where the router would have sent it; * means the same model.
   const agent = `agent: ${modelAlias(current)}`
-  if (!decision) return { model: null, shown: `model (${agent}; ${failure})`, failure }
+  if (!decision) return { model: null, shown: `model (${agent}; ${failure})`, failure, decision }
   const unpinned = route(decision, { model: current }, rt.policy).model
   const router = unpinned === null ? '*' : modelAlias(unpinned)
   const at = basis === null ? '' : ` @ ${basis}`
-  return { model: null, shown: `model (${agent}; router: ${router}${at})`, failure }
+  return { model: null, shown: `model (${agent}; router: ${router}${at})`, failure, decision }
 }
 
 /**
@@ -425,6 +430,20 @@ function reportSpawn($: Engine, rt: Runtime, e: SpawnEvent, sent: SpawnRouting, 
   const line = `subagent ${e.subagentType} · ${parts.join(', ')}`
   if (sent.failure !== null) warn($, line)
   else tell($, rt, line)
+}
+
+/** The effort a subagent's step runs at, from what the subagent was classified as when it spawned. */
+function routeSubagentStep($: Engine, rt: Runtime, e: StepEvent): Change | null {
+  const known = rt.subagents.get(e.agentId ?? '')
+  if (!known) return null
+  const effort = route(known.decision, { model: e.model, effort: e.effort }, rt.policy).effort
+  if (effort === null) return null
+  if (!known.told) {
+    known.told = true
+    const basis = changeBasis(known.decision, known.decision.effortConfidence, rt.policy)
+    tell($, rt, `${known.who} · ${describeMove('effort', String(e.effort), effort, basis)}`)
+  }
+  return { effort }
 }
 
 // ---------------------------------------------------------------------------
@@ -446,7 +465,10 @@ export const register: Register = (on, options) => {
   })
 
   on('turn.step', async function* ($, e, next) {
-    if (e.agentId) return yield* next(e)
+    if (e.agentId) {
+      const change = routeSubagentStep($, rt, e)
+      return yield* next(change ? { ...e, ...change } : e)
+    }
 
     const sameTurn = e.index > 0 && rt.turn !== null && rt.turn.id === e.turnId
     const change = sameTurn && rt.turn ? rt.turn.change : await routeTurn($, rt, e)
@@ -466,6 +488,9 @@ export const register: Register = (on, options) => {
     const sent = await routeSpawn($, rt, e)
     const started = await next(sent.model === null ? e : { ...e, model: sent.model })
     reportSpawn($, rt, e, sent, started)
+    if (rt.opts.routeSubagentEffort && sent.decision && started.agentId) {
+      rt.subagents.set(started.agentId, { decision: sent.decision, who: `subagent ${e.subagentType}`, told: false })
+    }
     return started
   })
 }

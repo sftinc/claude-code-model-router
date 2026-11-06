@@ -62,6 +62,7 @@ Options live under `pluginConfigs` in `~/.claude/settings.json`. The key is `mod
 | `contextMessages` / `contextChars` | 30 / 60000 | Recent context sent with main-loop prompts |
 | `routeSubagentModel` | true | |
 | `respectAgentModels` | true | Keeps a model the Agent tool named, unless risk forces deep. The subagent is still classified, and its line shows both picks, such as `model (agent: sonnet; router: haiku @ 97%)` (`*` when the router would keep the agent's). A model set in an agent's definition isn't visible to the router and isn't protected |
+| `routeSubagentEffort` | true | Sets each subagent's effort from its own classification. Needs `routeSubagentModel` and the API |
 | `routeMainEffort` | true | |
 | `routeMainModel` | false | Switching models invalidates the prompt cache |
 | `timeoutMs` | 2000 | Wait budget for the classifier |

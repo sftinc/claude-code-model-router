@@ -108,12 +108,12 @@ function viaPolicy(effort: (row: Row) => number, bars: { up: number; down: numbe
 
 /**
  * Haiku only when P(fast) clears `fast`, Opus only when P(deep) clears `deep`
- * (`subagentDeep` for a subagent turn), else Sonnet; effort always follows.
- * With 0.7, 0.4 and 0.6 this is what the Worker's tierFrom and effortFrom send today.
+ * (`subagentFast` and `subagentDeep` for a subagent turn), else Sonnet; effort always follows.
+ * With 0.7, 0.4, 0.6 and 0.5 this is what the Worker's tierFrom and effortFrom send today.
  */
-const byProbability = (fast: number, deep: number, effort: (row: Row) => number, subagentDeep = deep) => (row: Row): Pick => ({
+const byProbability = (fast: number, deep: number, effort: (row: Row) => number, subagentDeep = deep, subagentFast = fast) => (row: Row): Pick => ({
   model: MODEL_OF[
-    row.jevTierP.fast >= fast ? 'fast' : (row.jevTierP.deep ?? 0) >= (row.source === 'subagent' ? subagentDeep : deep) ? 'deep' : 'balanced'
+    row.jevTierP.fast >= (row.source === 'subagent' ? subagentFast : fast) ? 'fast' : (row.jevTierP.deep ?? 0) >= (row.source === 'subagent' ? subagentDeep : deep) ? 'deep' : 'balanced'
   ],
   effort: EFFORTS[effort(row)]!,
 })
@@ -124,7 +124,8 @@ const RULES: [string, (row: Row, start: Pick) => Pick][] = [
   ['follow Jev (no bars), score effort', viaPolicy(scoreEffort, { up: 0, down: 0 })],
   ['haiku P(fast)>=0.6, opus P(deep)>=0.4, score effort', byProbability(0.6, 0.4, scoreEffort)],
   ['round 1: haiku P(fast)>=0.7, opus P(deep)>=0.4', byProbability(0.7, 0.4, scoreEffort)],
-  ['live: as round 1, subagent opus at P(deep)>=0.6', byProbability(0.7, 0.4, scoreEffort, 0.6)],
+  ['round 2: as round 1, subagent opus at P(deep)>=0.6', byProbability(0.7, 0.4, scoreEffort, 0.6)],
+  ['live: as round 2, subagent haiku at P(fast)>=0.5', byProbability(0.7, 0.4, scoreEffort, 0.6, 0.5)],
 ]
 
 /** A turn starts on the session's model and effort; the rule decides what it moves to. */

@@ -107,7 +107,7 @@ const verdict = (patch: Record<string, unknown> = {}) =>
 const promptNext = async (e: unknown) => e
 
 /** Drives a `turn.step` call to its end and returns what reached `next`. */
-async function stepThrough(handlers: Record<string, (...args: unknown[]) => unknown>, $: unknown, e: ReturnType<typeof stepOf>) {
+async function stepThrough(handlers: Record<string, (...args: unknown[]) => unknown>, $: unknown, e: ReturnType<typeof stepOf> & { agentId?: string }) {
   let received: Record<string, unknown> = {}
   const stepNext = async function* (input: Record<string, unknown>) {
     received = input
@@ -263,6 +263,61 @@ describe('register', () => {
     await stepThrough(handlers, $, stepOf('t1', 0, 'claude-haiku-4-5-20251001', 'high'))
 
     expect(transcript).toEqual(['main loop · model (haiku-4), effort (dropped)'])
+  })
+
+  describe('subagent effort', () => {
+    const fastVerdict = async () => ({
+      ok: true,
+      status: 200,
+      headers: {},
+      text: verdict({ tier: { value: 'fast', confidence: 0.9 }, effort: { level: 0, confidence: 0.9 } }),
+    })
+    const spawnAgent = (handlers: Record<string, (...a: unknown[]) => unknown>, $: unknown) =>
+      (handlers['agent.spawn'] as (...a: unknown[]) => Promise<unknown>)(
+        $,
+        { prompt: 'find callers', description: 'Find', subagentType: 'Explore', parentModel: 'claude-opus-5-5', fork: false },
+        async () => ({ model: 'claude-haiku-5-5', agentId: 'a1' }),
+      )
+    const agentStep = (index: number, agentId = 'a1') => ({ ...stepOf('r1', index, 'claude-haiku-5-5', 'high'), agentId })
+
+    test('every step runs at the effort its own classification gave, with one line', async () => {
+      const { on, handlers } = recordHandlers()
+      register(on, OPTIONS)
+      const { $, transcript } = makeDollar({ fetch: fastVerdict })
+      await spawnAgent(handlers, $)
+
+      expect((await stepThrough(handlers, $, agentStep(0))).effort).toBe('low')
+      expect((await stepThrough(handlers, $, agentStep(1))).effort).toBe('low')
+      expect(transcript.filter((line) => line.includes('effort'))).toEqual(['subagent Explore · effort (high → low @ 90%)'])
+    })
+
+    test('a subagent the router did not classify keeps its effort', async () => {
+      const { on, handlers } = recordHandlers()
+      register(on, OPTIONS)
+      const { $ } = makeDollar({ fetch: fastVerdict })
+      await spawnAgent(handlers, $)
+
+      expect((await stepThrough(handlers, $, agentStep(0, 'other'))).effort).toBe('high')
+    })
+
+    test('a request carrying no effort stays without one', async () => {
+      const { on, handlers } = recordHandlers()
+      register(on, OPTIONS)
+      const { $ } = makeDollar({ fetch: fastVerdict })
+      await spawnAgent(handlers, $)
+
+      const received = await stepThrough(handlers, $, { ...stepOf('r1', 0, 'claude-haiku-4-5-20251001'), agentId: 'a1' })
+      expect(received.effort).toBeUndefined()
+    })
+
+    test('routeSubagentEffort off leaves it alone', async () => {
+      const { on, handlers } = recordHandlers()
+      register(on, { ...OPTIONS, routeSubagentEffort: false })
+      const { $ } = makeDollar({ fetch: fastVerdict })
+      await spawnAgent(handlers, $)
+
+      expect((await stepThrough(handlers, $, agentStep(0))).effort).toBe('high')
+    })
   })
 
   test('a subagent line shows the change, or the model it started on when left alone', async () => {

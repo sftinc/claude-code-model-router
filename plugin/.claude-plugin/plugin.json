@@ -99,6 +99,12 @@
       "description": "Keep a model the Agent tool named for a subagent unless risk forces an upgrade. Covers only the Agent tool's model parameter; a model set in an agent's definition isn't visible to the router",
       "default": true
     },
+    "routeSubagentEffort": {
+      "type": "boolean",
+      "title": "Route subagent effort",
+      "description": "Set each subagent's reasoning effort from its own classification; needs Route subagent models on and the API, since the built-in classifier gives no effort",
+      "default": true
+    },
     "routeMainEffort": {
       "type": "boolean",
       "title": "Route main-loop effort",
