@@ -22,7 +22,6 @@ export const MODELS: readonly Model[] = [
   { alias: 'haiku', tier: 'fast', effort: true },
   { alias: 'sonnet', tier: 'balanced', effort: true },
   { alias: 'opus', tier: 'deep', effort: true },
-  { alias: 'fable', tier: 'deep', effort: true },
   { alias: 'mythos', tier: 'deep', effort: true },
 ]
 

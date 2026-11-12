@@ -84,7 +84,6 @@ describe('rankOf', () => {
     const tiers = { fast: '', balanced: '', deep: '' }
     expect(rankOf(HAIKU, tiers)).toBe(0)
     expect(rankOf(SONNET, tiers)).toBe(1)
-    expect(rankOf('claude-fable-5-1', tiers)).toBe(2)
     expect(rankOf('claude-mythos-1', tiers)).toBe(2)
     expect(rankOf('OPUS', tiers)).toBe(2)
   })
@@ -99,7 +98,6 @@ describe('model ids', () => {
     expect(requestModel('haiku')).toBe('haiku')
     expect(requestModel(' Sonnet ')).toBe('sonnet')
     expect(requestModel('OPUS')).toBe('opus')
-    expect(requestModel('fable')).toBe('fable')
   })
 
   test('anything that is not an alias comes back unchanged', () => {
@@ -223,7 +221,6 @@ describe('route: risk', () => {
 
   test('forced risk keeps a model already in the deep tier', () => {
     expect(route(risky(), { model: 'claude-opus-5-5[1m]' }, CONFIG).model).toBeNull()
-    expect(route(risky(), { model: 'claude-fable-5-1' }, CONFIG).model).toBeNull()
   })
 
   test('forced risk replaces an unknown model', () => {
